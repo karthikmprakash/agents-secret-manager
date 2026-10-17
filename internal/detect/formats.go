@@ -7,12 +7,85 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// labelWords is shared by the explicit ("label: value", "label is value") and
+// whitespace-separated ("Access Key ID <value>") forms. Specific labels come
+// first so "s3 api endpoint" is not read as "api endpoint".
+const labelWords = `email(?: address)?|cloudflare api token|cloudflare account id|aws secret access key|aws access key id|aws region|secret access key|access key id|s3 api endpoint|s3 endpoint|api endpoint|account id|bucket(?: name)?|base[_ ]?url|api[_ ]?key|api[_ ]?token|token|password|region|profile|model|username`
+
+// Bare labels are the distinctive multi-word forms. Single words such as
+// token, model or region stay behind an explicit ":"/"="/"is" so prose is less
+// likely to be mistaken for a credential pair.
+const looseLabelWords = `email(?: address)?|cloudflare api token|cloudflare account id|aws secret access key|aws access key id|aws region|secret access key|access key id|s3 api endpoint|s3 endpoint|api endpoint|account id|bucket(?: name)?|base[_ ]?url|api[_ ]?key|api[_ ]?token`
+
 var (
 	emailInText   = regexp.MustCompile(`[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}`)
-	labeledValue  = regexp.MustCompile(`(?i)^(?:(?:my|the|your)\s+)?(email(?: address)?|base[_ ]?url|api[_ ]?key|api[_ ]?token|token|password|region|profile|model|username)\s*(?:\s+is\s+|:\s*|=\s*)(.+)$`)
+	labeledValue  = regexp.MustCompile(`(?i)^(?:(?:my|the|your)\s+)?(` + labelWords + `)\s*(?:\s+is\s+|:\s*|=\s*)(.+)$`)
+	labeledBare   = regexp.MustCompile(`(?i)^(?:(?:my|the|your)\s+)?(` + looseLabelWords + `)\s+(\S+)\s*$`)
 	camelBoundary = regexp.MustCompile(`([a-z0-9])([A-Z])`)
 	nonName       = regexp.MustCompile(`[^A-Za-z0-9_]+`)
 )
+
+// looksLikeCloudflareR2 uses block-wide context: an R2 endpoint or API token
+// prefix turns otherwise generic labels into R2-specific names and one group.
+func looksLikeCloudflareR2(text string) bool {
+	low := strings.ToLower(text)
+	return strings.Contains(low, "cloudflarestorage.com") ||
+		strings.Contains(low, "cfat_") ||
+		(strings.Contains(low, "cloudflare") && (strings.Contains(low, "access key") || strings.Contains(low, "r2")))
+}
+
+// labeledSuggestion maps a human label to a stable env-style name. Without
+// block context we stay provider-neutral; with R2 context the whole block is
+// grouped under "cloudflare" so it can be injected with one service selector.
+func labeledSuggestion(label, value string, cloudflare bool) (string, string) {
+	label = strings.ToLower(strings.Join(strings.Fields(label), " "))
+	switch label {
+	case "cloudflare api token":
+		return "CLOUDFLARE_API_TOKEN", "cloudflare"
+	case "cloudflare account id":
+		return "R2_ACCOUNT_ID", "cloudflare"
+	case "aws access key id":
+		return "AWS_ACCESS_KEY_ID", "aws"
+	case "aws secret access key":
+		return "AWS_SECRET_ACCESS_KEY", "aws"
+	case "aws region":
+		return "AWS_REGION", "aws"
+	}
+	if cloudflare {
+		switch label {
+		case "api token", "token":
+			return "CLOUDFLARE_API_TOKEN", "cloudflare"
+		case "access key id":
+			return "R2_ACCESS_KEY_ID", "cloudflare"
+		case "secret access key":
+			return "R2_SECRET_ACCESS_KEY", "cloudflare"
+		case "s3 api endpoint", "s3 endpoint", "api endpoint":
+			return "R2_ENDPOINT", "cloudflare"
+		case "account id":
+			return "R2_ACCOUNT_ID", "cloudflare"
+		case "bucket", "bucket name":
+			return "R2_BUCKET", "cloudflare"
+		case "region":
+			return "R2_REGION", "cloudflare"
+		}
+	}
+	switch label {
+	case "access key id":
+		return "ACCESS_KEY_ID", ""
+	case "secret access key":
+		return "SECRET_ACCESS_KEY", ""
+	case "s3 api endpoint", "s3 endpoint":
+		return "S3_ENDPOINT", ""
+	case "api endpoint":
+		return "API_ENDPOINT", ""
+	case "account id":
+		return "ACCOUNT_ID", ""
+	case "bucket", "bucket name":
+		return "BUCKET", ""
+	}
+	name := normalizeName(label)
+	return name, serviceFor(name)
+}
 
 func normalizeName(key string) string {
 	key = camelBoundary.ReplaceAllString(key, "${1}_${2}")

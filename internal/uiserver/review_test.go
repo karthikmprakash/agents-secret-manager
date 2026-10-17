@@ -87,6 +87,38 @@ func TestEditableReviewAndConflicts(t *testing.T) {
 	}
 }
 
+func TestDetectCloudflareR2Block(t *testing.T) {
+	_, host, token := newTestServer(t)
+	text := `Your API Token cfat_EXAMPLEONLYTOKEN0123456789abcdef
+Access Key ID 0123456789abcdef0123456789abcdef
+Secret Access Key fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210
+S3 API endpoint https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com`
+	code, body := do(t, "POST", sURL(host, "/api/detect"), token, jsonBody(t, map[string]string{"text": text}))
+	if code != 200 {
+		t.Fatalf("detect: %d", code)
+	}
+	var res struct {
+		Suggestions []detectView `json:"suggestions"`
+		Warnings    []any        `json:"warnings"`
+	}
+	if err := json.Unmarshal(body, &res); err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Warnings) != 0 || len(res.Suggestions) != 4 {
+		t.Fatalf("want four clean suggestions, got %s", body)
+	}
+	names := []string{"CLOUDFLARE_API_TOKEN", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_ENDPOINT"}
+	for i, name := range names {
+		s := res.Suggestions[i]
+		if s.Name != name || s.Service != "cloudflare" || !s.NewGroup || s.Line != i+1 {
+			t.Errorf("suggestion %d = %+v", i, s)
+		}
+	}
+	if res.Suggestions[3].Sensitive {
+		t.Error("R2 endpoint should be recognized as plain config")
+	}
+}
+
 func TestServiceBulkUndoChecksCurrentLabels(t *testing.T) {
 	_, host, token := newTestServer(t)
 	for _, name := range []string{"ONE", "TWO"} {

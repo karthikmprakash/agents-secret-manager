@@ -203,9 +203,10 @@ the vault are separate files, not one crash-atomic transaction.
 ### Paste anything
 
 The UI's **Import secrets** sheet parses locally: `.env` lines, JSON/YAML
-objects, supported setup commands, `curl` headers, and labeled text such as
-“my email address is person@example.org”. No model or network call is involved.
-It suggests names, Secret/Config type, and service groups:
+objects, supported setup commands, `curl` headers, labeled text such as
+“my email address is person@example.org”, and whitespace-separated blocks such
+as Cloudflare R2 credential exports. No model or network call is involved. It
+suggests names, Secret/Config type, and service groups:
 
 ```text
 STRIPE_BASE_URL=https://api.stripe.com
@@ -216,9 +217,12 @@ aws configure set aws_access_key_id AKIA…
 
 The Modal lines become `MODAL_TOKEN_ID` (secret, modal), `MODAL_TOKEN_SECRET`
 (secret, modal) and `MODAL_PROFILE` (config, modal); the env lines are grouped
-by their prefix. Bare values are recognized too: an email suggests `EMAIL`, a
-URL suggests `BASE_URL`, and a token-like string suggests `API_TOKEN` — rename
-any suggestion inline before storing. Missing groups are created on save.
+by their prefix. Cloudflare R2 exports (`Your API Token`, `Access Key ID`,
+`Secret Access Key`, `S3 API endpoint`) are recognized as one `cloudflare`
+group even without `:` separators. Bare values are recognized too: an email
+suggests `EMAIL`, a URL suggests `BASE_URL`, a Cloudflare `cfat_` token suggests
+`CLOUDFLARE_API_TOKEN`, and other token-like strings suggest `API_TOKEN` —
+rename any suggestion inline before storing. Missing groups are created on save.
 
 The review workspace lets you edit **name, value, group, and type**. Different
 values with the same suggested name are retained as separate entries with

@@ -39,7 +39,7 @@ var (
 	emailValue  = regexp.MustCompile(`^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$`)
 	urlValue    = regexp.MustCompile(`^https?://[^\s]+$`)
 	tokenValue  = regexp.MustCompile(`^[A-Za-z0-9_\-+/=.]{24,}$`)
-	tokenPrefix = []string{"sk-", "pk-", "rk-", "ak-", "as-", "ghp_", "github_pat_", "xoxb-", "xoxp-", "whsec_"}
+	tokenPrefix = []string{"sk-", "pk-", "rk-", "ak-", "as-", "ghp_", "github_pat_", "xoxb-", "xoxp-", "whsec_", "cfat_"}
 
 	prefixServices = map[string]string{
 		"AWS": "aws", "STRIPE": "stripe", "OPENAI": "openai", "ANTHROPIC": "anthropic",
@@ -47,6 +47,7 @@ var (
 		"HUGGINGFACE": "huggingface", "HF": "huggingface", "CURSOR": "cursor",
 		"SUPABASE": "supabase", "POSTGRES": "postgres", "REDIS": "redis",
 		"SLACK": "slack", "DOKPLOY": "dokploy", "VERCEL": "vercel", "FLY": "fly",
+		"CLOUDFLARE": "cloudflare", "R2": "cloudflare",
 	}
 )
 
@@ -101,6 +102,7 @@ func Analyze(text string) Report {
 		return report
 	}
 	text = strings.ReplaceAll(text, "\\\n", " ")
+	cloudflare := looksLikeCloudflareR2(text)
 	for i, raw := range strings.Split(text, "\n") {
 		lineNumber = i + 1
 		before := len(report.Suggestions)
@@ -125,14 +127,22 @@ func Analyze(text string) Report {
 			parseModal(tokens, add)
 			continue
 		case "aws":
-			parseAWS(tokens, add)
-			continue
+			// Only treat it as a command when it has the configure shape;
+			// otherwise "AWS Access Key ID …" is a labeled value.
+			if len(tokens) > 1 && strings.EqualFold(tokens[1], "configure") {
+				parseAWS(tokens, add)
+				continue
+			}
 		case "curl":
 			parseCurl(tokens, add)
 			continue
 		}
 		if m := labeledValue.FindStringSubmatch(line); m != nil {
-			add(Suggestion{Name: normalizeName(m[1]), Value: m[2], Source: "labeled text"})
+			name, service := labeledSuggestion(m[1], m[2], cloudflare)
+			add(Suggestion{Name: name, Value: m[2], Service: service, Source: "labeled text"})
+		} else if m := labeledBare.FindStringSubmatch(line); m != nil {
+			name, service := labeledSuggestion(m[1], m[2], cloudflare)
+			add(Suggestion{Name: name, Value: m[2], Service: service, Source: "labeled text"})
 		} else if emails := emailInText.FindAllString(line, -1); len(emails) > 0 {
 			for _, email := range emails {
 				add(Suggestion{Name: "EMAIL", Value: email, Source: "email in text"})
@@ -160,6 +170,8 @@ func parseBareValue(line string, add func(Suggestion)) {
 		add(Suggestion{Name: "EMAIL", Value: value, Source: "plain value"})
 	case urlValue.MatchString(value):
 		add(Suggestion{Name: "BASE_URL", Value: value, Source: "plain value"})
+	case strings.HasPrefix(strings.ToLower(value), "cfat_"):
+		add(Suggestion{Name: "CLOUDFLARE_API_TOKEN", Value: value, Service: "cloudflare", Source: "plain value"})
 	case tokenish(value):
 		add(Suggestion{Name: "API_TOKEN", Value: value, Source: "plain value"})
 	}
@@ -325,7 +337,7 @@ func sensitive(name, value string) bool {
 		return true
 	}
 	low := strings.ToLower(value)
-	for _, prefix := range []string{"sk-", "pk-", "rk-", "ak-", "as-", "ghp_", "github_pat_", "xoxb-", "xoxp-", "whsec_"} {
+	for _, prefix := range []string{"sk-", "pk-", "rk-", "ak-", "as-", "ghp_", "github_pat_", "xoxb-", "xoxp-", "whsec_", "cfat_"} {
 		if strings.HasPrefix(low, prefix) {
 			return true
 		}

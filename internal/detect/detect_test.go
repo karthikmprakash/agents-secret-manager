@@ -119,6 +119,67 @@ just some prose that is not a value
 	}
 }
 
+func TestParseCloudflareR2LabeledBlock(t *testing.T) {
+	text := `Your API Token cfat_EXAMPLEONLYTOKEN0123456789abcdef
+Access Key ID 0123456789abcdef0123456789abcdef
+Secret Access Key fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210
+S3 API endpoint https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com`
+	report := Analyze(text)
+	if len(report.Warnings) != 0 {
+		t.Fatalf("unexpected warnings: %+v", report.Warnings)
+	}
+	got := report.Suggestions
+	want := []struct {
+		name      string
+		value     string
+		sensitive bool
+		line      int
+	}{
+		{"CLOUDFLARE_API_TOKEN", "cfat_EXAMPLEONLYTOKEN0123456789abcdef", true, 1},
+		{"R2_ACCESS_KEY_ID", "0123456789abcdef0123456789abcdef", true, 2},
+		{"R2_SECRET_ACCESS_KEY", "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210", true, 3},
+		{"R2_ENDPOINT", "https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com", false, 4},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("want %d suggestions, got %+v", len(want), got)
+	}
+	for i, expected := range want {
+		if got[i].Name != expected.name || got[i].Value != expected.value {
+			t.Errorf("entry %d = %+v", i, got[i])
+		}
+		if got[i].Service != "cloudflare" {
+			t.Errorf("%s service = %q, want cloudflare", got[i].Name, got[i].Service)
+		}
+		if got[i].Sensitive != expected.sensitive {
+			t.Errorf("%s sensitive = %v, want %v", got[i].Name, got[i].Sensitive, expected.sensitive)
+		}
+		if got[i].Line != expected.line {
+			t.Errorf("%s line = %d, want %d", got[i].Name, got[i].Line, expected.line)
+		}
+	}
+}
+
+func TestParseWhitespaceSeparatedLabels(t *testing.T) {
+	got := Parse("API Token dummy-token-value-1234567890\nS3 API endpoint https://s3.example.org\nAWS Access Key ID AKIAEXAMPLE123456789\n")
+	if len(got) != 3 {
+		t.Fatalf("want 3 suggestions, got %+v", got)
+	}
+	if got[0].Name != "API_TOKEN" || !got[0].Sensitive || got[0].Service != "" {
+		t.Errorf("generic API token = %+v", got[0])
+	}
+	if got[1].Name != "S3_ENDPOINT" || got[1].Sensitive || got[1].Service != "" {
+		t.Errorf("generic S3 endpoint = %+v", got[1])
+	}
+	if got[2].Name != "AWS_ACCESS_KEY_ID" || got[2].Service != "aws" || !got[2].Sensitive {
+		t.Errorf("explicit AWS label = %+v", got[2])
+	}
+
+	report := Analyze("token bucket is full\nmodel context window is large\n")
+	if len(report.Suggestions) != 0 || len(report.Warnings) != 2 {
+		t.Fatalf("prose was over-detected: %+v", report)
+	}
+}
+
 func TestReviewSafetyAndFormats(t *testing.T) {
 	t.Run("natural language and duplicates", func(t *testing.T) {
 		r := Analyze("my email address is first@example.org\nsecond@example.org\nfirst@example.org\nunrecognized sentence")
