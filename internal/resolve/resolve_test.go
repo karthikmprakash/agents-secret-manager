@@ -254,3 +254,19 @@ func TestUnknownRef(t *testing.T) {
 		t.Fatal("expected an unknown ref error")
 	}
 }
+
+func TestKeys(t *testing.T) {
+	data := []byte("B=1\n# c\nA=2\nexport C=3\nB=4\n")
+	if got, want := strings.Join(Keys(data), ","), "B,A,C"; got != want {
+		t.Errorf("Keys = %q, want %q", got, want)
+	}
+}
+
+func TestReplaceValues(t *testing.T) {
+	data := []byte("A=secret\nB=keep\n# A=x\nexport C=zzz\n")
+	out := ReplaceValues(data, map[string]string{"A": "sm://A", "C": "sm://C"})
+	want := "A=sm://A\nB=keep\n# A=x\nC=sm://C\n"
+	if string(out) != want {
+		t.Errorf("ReplaceValues = %q, want %q", out, want)
+	}
+}

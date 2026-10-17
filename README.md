@@ -3,8 +3,8 @@
 Secrets and environment manager for AI agents — local-first, `.env`-native.
 Values never enter the model's context; the repo carries a manifest of references.
 
-Status: **M0–M3** — skeleton, manifest, local vault, resolver + `sm exec`,
-output redaction, hash-chained audit.
+Status: **M0–M4** — skeleton, manifest, local vault, resolver + `sm exec`,
+output redaction, hash-chained audit, import + doctor.
 Design frozen in [docs/DESIGN.md](docs/DESIGN.md).
 
 ## Quickstart
@@ -13,10 +13,11 @@ Design frozen in [docs/DESIGN.md](docs/DESIGN.md).
 go build -o sm ./cmd/sm
 ./sm init                 # vault identity (Keychain) + project manifest
 ./sm add GITHUB_TOKEN     # prompted; stored encrypted, never on disk in plaintext
+./sm import .env          # or migrate an existing .env (interactive; --all for all)
 ./sm env                  # declared secrets, transports and status — never values
 ./sm exec -- npm test     # child process gets vault secrets + .env refs
-./sm log                  # audit trail (names only)
-./sm log verify           # verify the hash chain
+./sm doctor               # find plaintext copies: rc files, transcripts, git history
+./sm log verify           # audit trail + hash chain
 ```
 
 `.env` can reference declared secrets by name:
@@ -40,10 +41,11 @@ the auto heuristic. Every exec is recorded in `~/.config/sm/audit.jsonl`
 ```
 cmd/sm/            CLI
 internal/manifest/ .agentsecrets.toml schema, discovery, validation
-internal/resolve/  dotenv parser, precedence, refuse-on-shadow
+internal/resolve/  dotenv parser, precedence, refuse-on-shadow, ref rewrite
 internal/store/    Store interface + encrypted vault (age)
 internal/keys/     master identity in the OS Keychain
 internal/generate/ --generate profiles
 internal/redact/   streaming value redaction
 internal/audit/    hash-chained JSONL audit log
+internal/scan/     doctor: rc files, transcripts, MCP configs, git history
 ```

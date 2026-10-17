@@ -7,7 +7,7 @@ import (
 	"os"
 )
 
-const version = "0.1.0-dev (M3)"
+const version = "0.1.0-dev (M4)"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -21,10 +21,14 @@ func main() {
 		err = cmdInit(os.Args[2:])
 	case "add":
 		err = cmdAdd(os.Args[2:])
+	case "import":
+		err = cmdImport(os.Args[2:])
 	case "env":
 		err = cmdEnv(os.Args[2:])
 	case "exec":
 		err = cmdExec(os.Args[2:])
+	case "doctor":
+		err = cmdDoctor(os.Args[2:])
 	case "log":
 		err = cmdLog(os.Args[2:])
 	case "version", "--version", "-v":
@@ -55,8 +59,10 @@ func usage() {
 usage:
   sm init                 create the vault identity, config dir and a project manifest
   sm add NAME [flags]     store a secret and declare it in .agentsecrets.toml
+  sm import [flags]       move plaintext .env values into the vault, leave sm:// refs
   sm env                  show declared secrets, transports and status (never values)
   sm exec [flags] -- CMD  run CMD with manifest secrets and .env refs resolved
+  sm doctor [flags]       scan rc files, transcripts, MCP configs and git history for leaks
   sm log [verify]         show the audit trail, or verify its hash chain
   sm version              print version
 
@@ -66,10 +72,20 @@ flags for add:
   --generate SPEC         generate the value instead of prompting: [profile/]length
   --scope LIST            comma-separated local scopes, e.g. cmd:gh,cmd:git
 
+flags for import:
+  --file PATH             dotenv file to migrate (default .env, relative to project root)
+  --all                   import every plaintext entry without prompting
+  --dry-run               print the plan without changing anything
+  (positional KEYs import just those entries)
+
 flags for exec:
   --profile NAME          load .env.<profile> between .env and .env.local
   --redact MODE           redact secret values in child output: auto | always | never
                           (auto: on when output is not a terminal)
   -v, --verbose           print what was resolved (names only)
+
+flags for doctor:
+  --no-history            skip git history
+  --depth N               max commits to scan (default 500)
 `)
 }

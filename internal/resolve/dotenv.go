@@ -186,3 +186,51 @@ func loadChain(dir, profile string) ([]envFile, error) {
 }
 
 func isRef(v string) bool { return strings.HasPrefix(v, "sm://") }
+
+// Keys returns the keys declared in data, in file order, deduplicated.
+func Keys(data []byte) []string {
+	seen := map[string]bool{}
+	var out []string
+	text := strings.ReplaceAll(string(data), "\r\n", "\n")
+	for _, raw := range strings.Split(text, "\n") {
+		line := strings.TrimSpace(raw)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		line = strings.TrimPrefix(line, "export ")
+		key, _, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		key = strings.TrimSpace(key)
+		if !validEnvKey(key) || seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, key)
+	}
+	return out
+}
+
+// ReplaceValues rewrites plaintext assignments in data to refs:
+// KEY=REF. Lines for other keys are left untouched. Used by `sm import`.
+func ReplaceValues(data []byte, refs map[string]string) []byte {
+	text := strings.ReplaceAll(string(data), "\r\n", "\n")
+	lines := strings.Split(text, "\n")
+	for i, raw := range lines {
+		line := strings.TrimSpace(raw)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		trimmed := strings.TrimPrefix(line, "export ")
+		key, _, ok := strings.Cut(trimmed, "=")
+		if !ok {
+			continue
+		}
+		key = strings.TrimSpace(key)
+		if ref, ok := refs[key]; ok {
+			lines[i] = key + "=" + ref
+		}
+	}
+	return []byte(strings.Join(lines, "\n"))
+}
