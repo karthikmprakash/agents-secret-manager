@@ -9,10 +9,11 @@ the `0.x` series.
 
 ### Added
 
-- Detect credentials from pasted commands and env lines (Modal, AWS, generic
-  KEY=value), review suggested names, secret/config kinds and groups, and
-  create missing groups on save. Sensitive values are masked until revealed
-  for verification; values are never logged or exposed in stored state.
+- The Import sheet accepts any pasted text — .env lines, setup commands, or a
+  mix — and auto-detects entries (Modal, AWS, generic `KEY=value`), with
+  secret/config classification, inferred groups, and masked values that can be
+  revealed for verification. Missing groups are created on save; values are
+  never logged or exposed in stored state.
 
 - Secrets are organized into distinct group cards with member counts; each
   group has a quick-add action that preselects it.
@@ -20,6 +21,7 @@ the `0.x` series.
   one inline, or leave it ungrouped.
 - Group pickers are a styled combobox with filtering, keyboard navigation and
   an explicit create-new row, replacing the native datalist/select popups.
+
 ## [0.3.0] - 2026-10-17
 
 First public release.
