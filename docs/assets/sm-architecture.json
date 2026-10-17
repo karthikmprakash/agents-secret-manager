@@ -1,0 +1,295 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "sm \u00b7 local agent secret broker",
+    "output": "sm-architecture.html",
+    "quality_profile": "showcase",
+    "animation": "none"
+  },
+  "components": [
+    {
+      "id": "keychain",
+      "type": "security",
+      "label": "macOS Keychain",
+      "sublabel": "vault identity",
+      "pos": [
+        40,
+        30
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "vault",
+      "type": "database",
+      "label": "Encrypted vault",
+      "sublabel": "vault.age \u00b7 age X25519",
+      "pos": [
+        230,
+        25
+      ],
+      "size": [
+        170,
+        70
+      ]
+    },
+    {
+      "id": "recovery",
+      "type": "database",
+      "label": "Recovery archive",
+      "sublabel": "passphrase \u00b7 scrypt",
+      "pos": [
+        430,
+        30
+      ],
+      "size": [
+        170,
+        64
+      ]
+    },
+    {
+      "id": "manifests",
+      "type": "database",
+      "label": "Manifests",
+      "sublabel": "global + project refs",
+      "pos": [
+        650,
+        30
+      ],
+      "size": [
+        170,
+        64
+      ]
+    },
+    {
+      "id": "audit",
+      "type": "database",
+      "label": "Audit log",
+      "sublabel": "hash-chained names",
+      "pos": [
+        850,
+        30
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "agent",
+      "type": "external",
+      "label": "AI coding agent",
+      "sublabel": "Claude Code \u00b7 Codex \u00b7 Cursor",
+      "pos": [
+        100,
+        260
+      ],
+      "size": [
+        170,
+        74
+      ]
+    },
+    {
+      "id": "mcp",
+      "type": "backend",
+      "label": "MCP server",
+      "sublabel": "sm mcp \u00b7 stdio",
+      "pos": [
+        400,
+        255
+      ],
+      "size": [
+        170,
+        80
+      ]
+    },
+    {
+      "id": "command",
+      "type": "backend",
+      "label": "Child command",
+      "sublabel": "plaintext env \u00b7 no sandbox",
+      "pos": [
+        690,
+        260
+      ],
+      "size": [
+        170,
+        70
+      ]
+    },
+    {
+      "id": "service",
+      "type": "external",
+      "label": "Upstream API",
+      "sublabel": "HTTPS",
+      "pos": [
+        910,
+        265
+      ],
+      "size": [
+        150,
+        64
+      ]
+    },
+    {
+      "id": "developer",
+      "type": "external",
+      "label": "Developer",
+      "sublabel": "terminal / Mac app",
+      "pos": [
+        40,
+        150
+      ],
+      "size": [
+        170,
+        64
+      ]
+    },
+    {
+      "id": "cli",
+      "type": "frontend",
+      "label": "CLI + local UI",
+      "sublabel": "setup \u00b7 import \u00b7 groups",
+      "pos": [
+        260,
+        147
+      ],
+      "size": [
+        170,
+        70
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "security-group",
+      "label": "Encrypted at rest",
+      "wraps": [
+        "keychain",
+        "vault",
+        "recovery"
+      ],
+      "pad": 18
+    }
+  ],
+  "connections": [
+    {
+      "id": "agent-to-mcp",
+      "from": "agent",
+      "to": "mcp",
+      "label": "secret_list / secret_run",
+      "variant": "emphasis"
+    },
+    {
+      "id": "mcp-to-agent",
+      "from": "mcp",
+      "to": "agent",
+      "label": "exit code + redacted output",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "bottom",
+      "via": [
+        [
+          485,
+          380
+        ],
+        [
+          185,
+          380
+        ]
+      ],
+      "labelSegment": 1
+    },
+    {
+      "id": "mcp-to-command",
+      "from": "mcp",
+      "to": "command",
+      "label": "inject selected env"
+    },
+    {
+      "id": "command-to-service",
+      "from": "command",
+      "to": "service",
+      "label": "request",
+      "variant": "dashed"
+    },
+    {
+      "id": "keychain-to-vault",
+      "from": "keychain",
+      "to": "vault",
+      "label": "identity"
+    },
+    {
+      "id": "vault-to-recovery",
+      "from": "vault",
+      "to": "recovery",
+      "label": "encrypted export"
+    },
+    {
+      "id": "mcp-to-vault",
+      "from": "mcp",
+      "to": "vault",
+      "label": "decrypt selected"
+    },
+    {
+      "id": "mcp-to-manifests",
+      "from": "mcp",
+      "to": "manifests",
+      "label": "refs + cwd",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "mcp-to-audit",
+      "from": "mcp",
+      "to": "audit",
+      "label": "names",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "cli-to-vault",
+      "from": "cli",
+      "to": "vault",
+      "label": "encrypted writes"
+    },
+    {
+      "id": "developer-to-cli",
+      "from": "developer",
+      "to": "cli",
+      "label": "local"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Runtime",
+      "items": [
+        "MCP over stdio; no value-returning tool",
+        "Selected names or a service are injected into the child",
+        "Captured output is bounded and exact sensitive values are redacted"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Storage",
+      "items": [
+        "One age X25519 vault; the identity stays in the Keychain",
+        "Global and project manifests carry references only",
+        "Audit records names, not values"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Boundary",
+      "items": [
+        "Child commands receive plaintext credentials",
+        "Not a sandbox, prompt-injection defense or per-agent ACL",
+        "scope and service selection are cooperative, not authorization"
+      ]
+    }
+  ]
+}

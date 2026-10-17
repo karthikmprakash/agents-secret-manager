@@ -101,14 +101,11 @@ need a reconnect or restart.
 
 Every configured harness starts the same MCP server:
 
-```mermaid
-flowchart LR
-    A[Agent] -->|secret_run| S[sm MCP]
-    S -->|inject selected values| C[Command]
-    C -->|stdout / stderr| S
-    S -->|exit code + redacted output| A
-    V[(age vault)] -.-> S
-```
+![sm local runtime architecture](docs/assets/sm-architecture.png)
+
+Agents call the MCP server; selected values are injected into the child process
+and only its output returns. Children receive plaintext — see
+[Security boundaries](#security-boundaries).
 
 | Tool | Returns |
 | --- | --- |
@@ -257,6 +254,7 @@ many harnesses and keeps values out of the MCP surface without a subscription.
 - [Implementation review](docs/REVIEW.md) — fixes and remaining work.
 - [Local-only roadmap](docs/LOCAL-ROADMAP.md) — proposed features and constraints.
 - [Changelog](CHANGELOG.md).
+- [Architecture diagram source](docs/assets/sm-architecture.json) — Archify JSON used for the README architecture diagram.
 
 ## Development
 
