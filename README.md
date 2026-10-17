@@ -7,6 +7,7 @@ without ever returning the values to the model. Agents get `secret_list` and
 `secret_run`; there is deliberately no `secret_get`.
 
 [![CI](https://github.com/karthikmprakash/agents-secret-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/karthikmprakash/agents-secret-manager/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/karthikmprakash/agents-secret-manager?display_name=tag)](https://github.com/karthikmprakash/agents-secret-manager/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Go 1.27+](https://img.shields.io/badge/go-1.27%2B-00ADD8.svg)](go.mod)
 [![macOS 13+](https://img.shields.io/badge/platform-macOS%2013%2B-lightgrey.svg)](#install)

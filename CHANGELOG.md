@@ -7,6 +7,12 @@ the `0.x` series.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-17
+
+Editable local import review, broader deterministic parsing, group management,
+passphrase-encrypted recovery, a redesigned CLI, and developer-focused docs and
+diagrams.
+
 ### Added
 
 - A developer-focused README and [user guide](docs/GUIDE.md): problem, quick
