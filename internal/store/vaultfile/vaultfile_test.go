@@ -1,12 +1,61 @@
 package vaultfile
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"filippo.io/age"
 )
+
+func TestConcurrentStaleWritersDoNotLoseValues(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "vault.age")
+	id := newIdentity(t)
+	var writers []*Vault
+	for i := 0; i < 20; i++ {
+		v, err := Open(p, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		writers = append(writers, v)
+	}
+	var wg sync.WaitGroup
+	errors := make(chan error, len(writers))
+	for i, v := range writers {
+		wg.Add(1)
+		go func() { defer wg.Done(); errors <- v.Set(fmt.Sprintf("key/%d", i), "value") }()
+	}
+	wg.Wait()
+	close(errors)
+	for err := range errors {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	v, err := Open(p, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	all, _ := v.List()
+	if len(all) != len(writers) {
+		t.Fatalf("lost writes: %d/%d", len(all), len(writers))
+	}
+}
+
+func TestSetNewDoesNotOverwrite(t *testing.T) {
+	v, err := Open(filepath.Join(t.TempDir(), "vault.age"), newIdentity(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := v.SetNew("key", "original"); err != nil {
+		t.Fatal(err)
+	}
+	if err := v.SetNew("key", "changed"); err == nil {
+		t.Fatal("overwrote existing value")
+	}
+}
 
 func newIdentity(t *testing.T) string {
 	t.Helper()

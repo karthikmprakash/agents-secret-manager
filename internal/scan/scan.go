@@ -4,6 +4,7 @@ package scan
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -12,8 +13,9 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
-	"github.com/karthikmprakash/agents-secret-manager/internal/redact"
+	"github.com/karthikmprakash/agents-secret-manager/internal/resolve"
 )
 
 const (
@@ -49,11 +51,11 @@ type Result struct {
 	Findings []Finding
 	Scanned  int
 	Skipped  int
+	Warnings []string
 }
 
 type scanner struct {
 	secrets []Secret
-	labels  map[string]string
 	managed map[string]bool
 	result  *Result
 }
@@ -67,21 +69,12 @@ type target struct {
 func Run(opts Options, secrets []Secret, managedNames []string) *Result {
 	s := &scanner{
 		secrets: append([]Secret(nil), secrets...),
-		labels:  map[string]string{},
 		managed: map[string]bool{},
 		result:  &Result{},
 	}
 	sort.Slice(s.secrets, func(i, j int) bool {
 		return len(s.secrets[i].Value) > len(s.secrets[j].Value)
 	})
-	for _, sec := range s.secrets {
-		if sec.Value == "" {
-			continue
-		}
-		if _, ok := s.labels[sec.Value]; !ok {
-			s.labels[sec.Value] = sec.Name
-		}
-	}
 	for _, n := range managedNames {
 		s.managed[n] = true
 	}
@@ -108,6 +101,9 @@ func Run(opts Options, secrets []Secret, managedNames []string) *Result {
 		targets = append(targets, walkJSONL(filepath.Join(opts.HomeDir, ".codex"), "~/.codex")...)
 		addFile(filepath.Join(opts.HomeDir, ".hermes", "config.yaml"), "~/.hermes/config.yaml")
 		addFile(filepath.Join(opts.HomeDir, ".hermes", ".env"), "~/.hermes/.env")
+		targets = append(targets, walkJSONL(filepath.Join(opts.HomeDir, ".hermes", "sessions"), "~/.hermes/sessions")...)
+		addFile(filepath.Join(opts.HomeDir, ".config", "opencode", "opencode.json"), "~/.config/opencode/opencode.json")
+		addFile(filepath.Join(opts.HomeDir, ".config", "opencode", "opencode.jsonc"), "~/.config/opencode/opencode.jsonc")
 		if matches, _ := filepath.Glob(filepath.Join(opts.HomeDir, ".cursor", "projects", "*", "agent-transcripts", "*.jsonl")); len(matches) > 0 {
 			for _, m := range matches {
 				addFile(m, relHome(m, opts.HomeDir))
@@ -119,6 +115,10 @@ func Run(opts Options, secrets []Secret, managedNames []string) *Result {
 			"~/Library/Application Support/Claude/claude_desktop_config.json")
 	}
 
+	if len(targets) >= maxFiles {
+		s.result.Warnings = append(s.result.Warnings, "File limit reached; scan is incomplete.")
+		targets = targets[:maxFiles]
+	}
 	for _, t := range targets {
 		s.scanFile(t.path, t.display)
 	}
@@ -209,7 +209,9 @@ func (s *scanner) check(line, loc string, lineNo int) bool {
 			Location: fmt.Sprintf("%s:%d", loc, lineNo),
 			Kind:     "value",
 			Name:     sec.Name,
-			Snippet:  truncate(redact.String(line, s.labels), 140),
+			// Never echo surrounding transcript text: it may contain a different,
+			// unregistered credential on the same line.
+			Snippet: "[redacted:" + sec.Name + "]",
 		})
 		return true
 	}
@@ -220,6 +222,9 @@ func (s *scanner) check(line, loc string, lineNo int) bool {
 		key := strings.TrimSpace(t[:i])
 		if s.managed[key] {
 			v := strings.TrimSpace(t[i+1:])
+			if parsed, err := resolve.ParseDotenv([]byte(t)); err == nil {
+				v = parsed[key]
+			}
 			if v != "" && !strings.HasPrefix(v, "sm://") && !strings.HasPrefix(v, "vault://") {
 				s.result.Findings = append(s.result.Findings, Finding{
 					Location: fmt.Sprintf("%s:%d", loc, lineNo),
@@ -235,18 +240,31 @@ func (s *scanner) check(line, loc string, lineNo int) bool {
 
 // scanGit walks added lines in git history.
 func (s *scanner) scanGit(dir string, depth int) {
-	cmd := exec.Command("git", "-C", dir, "log", "-p", "--all", "--max-count", strconv.Itoa(depth))
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	// Not being in a repository is normal for global-only use.
+	if err := exec.CommandContext(ctx, "git", "-C", dir, "rev-parse", "--git-dir").Run(); err != nil {
+		return
+	}
+	cmd := exec.CommandContext(ctx, "git", "-C", dir, "log", "--no-ext-diff", "--no-textconv", "--format=commit %H", "-p", "--all", "--max-count", strconv.Itoa(depth))
 	cmd.Stderr = io.Discard
 	pipe, err := cmd.StdoutPipe()
 	if err != nil {
+		s.result.Warnings = append(s.result.Warnings, "Could not read git history.")
 		return
 	}
 	if err := cmd.Start(); err != nil {
+		s.result.Warnings = append(s.result.Warnings, "Could not scan git history.")
 		return
 	}
-	defer cmd.Wait()
+	defer func() {
+		_ = pipe.Close()
+		if err := cmd.Wait(); err != nil {
+			s.result.Warnings = append(s.result.Warnings, "Git history scan did not complete.")
+		}
+	}()
 
-	reader := bufio.NewReader(pipe)
+	reader := bufio.NewReader(io.LimitReader(pipe, 64<<20))
 	commit, file := "", ""
 	lineNo, count := 0, 0
 	for {
@@ -264,6 +282,7 @@ func (s *scanner) scanGit(dir string, depth int) {
 				}
 			case strings.HasPrefix(line, "+++ b/"):
 				file = strings.TrimSpace(strings.TrimPrefix(line, "+++ b/"))
+				count = 0
 			case strings.HasPrefix(line, "@@"):
 				lineNo = hunkStart(line)
 			case strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++"):
@@ -302,11 +321,4 @@ func hunkStart(line string) int {
 		return 0
 	}
 	return n
-}
-
-func truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n] + "…"
 }

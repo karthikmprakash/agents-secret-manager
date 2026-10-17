@@ -52,16 +52,36 @@ func cmdEnv(args []string) error {
 	for n := range merged.Secrets {
 		names = append(names, n)
 	}
-	sort.Strings(names)
+	sort.Slice(names, func(i, j int) bool {
+		si, sj := merged.Secrets[names[i]].Service, merged.Secrets[names[j]].Service
+		if si != sj {
+			if si == "" {
+				return true
+			}
+			if sj == "" {
+				return false
+			}
+			return si < sj
+		}
+		return names[i] < names[j]
+	})
 
 	fmt.Println()
 	w := tabwriter.NewWriter(os.Stdout, 2, 4, 2, ' ', 0)
-	fmt.Fprintln(w, "NAME\tTRANSPORT\tREF\tSTATUS")
+	fmt.Fprintln(w, "NAME\tSERVICE\tTRANSPORT\tREF\tSTATUS")
+	configCount := 0
 	for _, n := range names {
 		s := merged.Secrets[n]
+		service := s.Service
+		if service == "" {
+			service = "-"
+		}
+		if !s.IsSensitive() {
+			configCount++
+		}
 		r, err := manifest.ParseRef(s.Ref)
 		if err != nil {
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", n, s.Transport, s.Ref, "invalid ref")
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", n, service, s.Transport, s.Ref, "invalid ref")
 			continue
 		}
 		_, found, err := v.Get(r.Path)
@@ -72,10 +92,13 @@ func cmdEnv(args []string) error {
 		case !found:
 			status = "missing"
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", n, s.Transport, s.Ref, status)
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", n, service, s.Transport, s.Ref, status)
 	}
 	w.Flush()
 
 	fmt.Println("\nvalues are never printed")
+	if configCount > 0 {
+		fmt.Printf("%d config value(s) marked sensitive=false (not masked, not reported as leaks)\n", configCount)
+	}
 	return nil
 }

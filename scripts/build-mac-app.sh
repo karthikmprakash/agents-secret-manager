@@ -7,9 +7,15 @@ APP="dist/sm.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
-go build -o "$APP/Contents/MacOS/sm" ./cmd/sm
+ARCH="${ARCH:-$(uname -m)}"
+case "$ARCH" in
+  arm64) GOARCH=arm64 ;;
+  x86_64) GOARCH=amd64 ;;
+  *) echo "Unsupported architecture: $ARCH" >&2; exit 1 ;;
+esac
+GOOS=darwin GOARCH="$GOARCH" go build -o "$APP/Contents/MacOS/sm" ./cmd/sm
 xcrun swiftc -O \
-  -target arm64-apple-macosx13.0 \
+  -target "$ARCH-apple-macosx13.0" \
   -framework Cocoa \
   -framework WebKit \
   macapp/SMApp.swift \
@@ -36,5 +42,6 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 </plist>
 PLIST
 
-codesign --force --deep --sign - "$APP" >/dev/null 2>&1 || true
+codesign --force --deep --sign - "$APP"
+codesign --verify --deep --strict "$APP"
 echo "built $APP"

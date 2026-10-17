@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"math/big"
+	"strconv"
 	"strings"
 )
 
@@ -35,8 +36,8 @@ func Value(spec string) (string, error) {
 		return "", fmt.Errorf("unknown generate profile %q (want alnum, hex or postgres)", profile)
 	}
 
-	n := 0
-	if _, err := fmt.Sscanf(lenPart, "%d", &n); err != nil || n < 8 || n > 256 {
+	n, err := strconv.Atoi(lenPart)
+	if err != nil || n < 8 || n > 256 {
 		return "", fmt.Errorf("generate length must be an integer between 8 and 256, got %q", lenPart)
 	}
 	return randomString(charset, n)

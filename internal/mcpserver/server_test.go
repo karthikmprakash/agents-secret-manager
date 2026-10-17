@@ -164,3 +164,54 @@ func contentText(res *mcp.CallToolResult) string {
 	}
 	return b.String()
 }
+
+func TestRunBoundsOutputAndRemovesIdentity(t *testing.T) {
+	proj := t.TempDir()
+	cfg := t.TempDir()
+	t.Setenv("SM_CONFIG_DIR", cfg)
+	id, err := age.GenerateX25519Identity()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("SM_IDENTITY", id.String())
+	if err := os.WriteFile(filepath.Join(proj, ".agentsecrets.toml"), []byte("[secrets]\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	res, _, err := runTool(context.Background(), nil, runArgs{Cwd: proj, Command: `test -z "$SM_IDENTITY" || exit 99; head -c 200000 /dev/zero | tr '\000' x`})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.IsError {
+		t.Fatal(contentText(res))
+	}
+	text := contentText(res)
+	if len(text) > 101000 || !strings.Contains(text, "truncated") {
+		t.Fatal("output not bounded")
+	}
+	if strings.Contains(text, id.String()) {
+		t.Fatal("master identity leaked")
+	}
+}
+
+func TestRunCancellationKillsShellGroup(t *testing.T) {
+	proj := t.TempDir()
+	t.Setenv("SM_CONFIG_DIR", t.TempDir())
+	id, err := age.GenerateX25519Identity()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("SM_IDENTITY", id.String())
+	if err := os.WriteFile(filepath.Join(proj, ".agentsecrets.toml"), []byte("[secrets]\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	res, _, err := runTool(ctx, nil, runArgs{Cwd: proj, Command: "sleep 30 & wait"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if time.Since(start) > 3*time.Second || !res.IsError || !strings.Contains(contentText(res), "timed out") {
+		t.Fatal("cancellation failed")
+	}
+}

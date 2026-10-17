@@ -4,16 +4,11 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/karthikmprakash/agents-secret-manager/internal/generate"
+	"github.com/karthikmprakash/agents-secret-manager/internal/manifest"
+	"github.com/karthikmprakash/agents-secret-manager/internal/secrets"
 	"os"
 	"strings"
-	"time"
-
-	"github.com/karthikmprakash/agents-secret-manager/internal/audit"
-	"github.com/karthikmprakash/agents-secret-manager/internal/config"
-	"github.com/karthikmprakash/agents-secret-manager/internal/generate"
-	"github.com/karthikmprakash/agents-secret-manager/internal/keys"
-	"github.com/karthikmprakash/agents-secret-manager/internal/manifest"
-	"github.com/karthikmprakash/agents-secret-manager/internal/store/vaultfile"
 )
 
 func cmdRotate(args []string) error {
@@ -75,36 +70,8 @@ func cmdRotate(args []string) error {
 		return fmt.Errorf("empty value; nothing rotated")
 	}
 
-	identity, err := keys.Get()
-	if err != nil {
+	if err := secrets.Rotate(cwd, name, value); err != nil {
 		return err
-	}
-	vaultPath, err := keys.VaultPath()
-	if err != nil {
-		return err
-	}
-	v, err := vaultfile.Open(vaultPath, identity)
-	if err != nil {
-		return err
-	}
-	if err := v.Set(ref.Path, value); err != nil {
-		return fmt.Errorf("write vault: %w", err)
-	}
-
-	auditDir, err := config.Dir()
-	if err != nil {
-		return err
-	}
-	entry := audit.Entry{
-		TS:      time.Now().UTC().Format(time.RFC3339),
-		Session: audit.NewSession(),
-		Cmd:     "sm rotate " + name,
-		Secrets: []string{name},
-		Action:  "rotate",
-		CWD:     cwd,
-	}
-	if err := audit.Append(auditDir, entry); err != nil {
-		return fmt.Errorf("value rotated, but audit append failed: %w", err)
 	}
 
 	fmt.Printf("rotated %s (ref %s unchanged) — every surface picks it up on the next run\n", name, secret.Ref)

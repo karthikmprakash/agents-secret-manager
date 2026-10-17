@@ -6,10 +6,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"os/signal"
 	"sort"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/karthikmprakash/agents-secret-manager/internal/audit"
@@ -17,11 +15,12 @@ import (
 	"github.com/karthikmprakash/agents-secret-manager/internal/keys"
 	"github.com/karthikmprakash/agents-secret-manager/internal/manifest"
 	"github.com/karthikmprakash/agents-secret-manager/internal/redact"
+	"github.com/karthikmprakash/agents-secret-manager/internal/runner"
 	"github.com/karthikmprakash/agents-secret-manager/internal/store/vaultfile"
 	"github.com/karthikmprakash/agents-secret-manager/internal/tpl"
 )
 
-func cmdInject(args []string) error {
+func cmdInject(args []string) (retErr error) {
 	fs := flag.NewFlagSet("sm inject", flag.ContinueOnError)
 	tplPath := fs.String("tpl", "", "template file with {{sm:NAME}} placeholders")
 	outPath := fs.String("out", "", "output file (mode 0600, shredded when the command exits)")
@@ -69,7 +68,7 @@ func cmdInject(args []string) error {
 		if !ok {
 			return "", fmt.Errorf("placeholder {{sm:%s}} has no declared secret", name)
 		}
-		if s.Transport == manifest.TransportProxy {
+		if s.Transport == manifest.TransportProxy || s.Transport == manifest.TransportGen {
 			return "", fmt.Errorf("secret %s: transport \"proxy\" cannot be materialized (v0.3 broker)", name)
 		}
 		ref, err := manifest.ParseRef(s.Ref)
@@ -111,7 +110,7 @@ func cmdInject(args []string) error {
 	entry := audit.Entry{
 		TS:      time.Now().UTC().Format(time.RFC3339),
 		Session: audit.NewSession(),
-		Cmd:     fmt.Sprintf("sm inject --tpl %s --out %s", *tplPath, *outPath),
+		Cmd:     redact.String(fmt.Sprintf("sm inject --tpl %s --out %s -- %s", *tplPath, *outPath, strings.Join(cmdArgs, " ")), labels),
 		Secrets: used,
 		Action:  "materialize",
 		CWD:     cwd,
@@ -120,42 +119,34 @@ func cmdInject(args []string) error {
 		return fmt.Errorf("append audit log: %w", err)
 	}
 
-	if err := tpl.WriteFile(*outPath, []byte(rendered)); err != nil {
+	cleanup, err := tpl.Materialize(*outPath, []byte(rendered))
+	if err != nil {
 		return err
 	}
+	defer func() {
+		if err := cleanup(); err != nil && retErr == nil {
+			retErr = fmt.Errorf("could not remove materialized file: %w", err)
+		}
+	}()
 	if *verbose || *verboseLong {
 		fmt.Fprintf(os.Stderr, "sm: materialized %s (mode 0600)\n", *outPath)
 		fmt.Fprintf(os.Stderr, "sm: secrets %s\n", strings.Join(used, ", "))
 		fmt.Fprintf(os.Stderr, "sm: session %s · file shredded on exit\n", entry.Session)
 	}
 
-	child := exec.Command(cmdArgs[0], cmdArgs[1:]...)
+	child := runner.Command(cmdArgs, os.Environ())
 	child.Stdin = os.Stdin
 	out := redact.New(os.Stdout, labels)
 	errW := redact.New(os.Stderr, labels)
 	child.Stdout = out
 	child.Stderr = errW
 
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		if sig, ok := <-sigCh; ok && child.Process != nil {
-			_ = child.Process.Signal(sig)
-		}
-	}()
-
-	runErr := child.Run()
-	signal.Stop(sigCh)
-	close(sigCh)
+	runErr := runner.Run(child)
 	if ferr := out.Flush(); ferr != nil && runErr == nil {
 		runErr = ferr
 	}
 	if ferr := errW.Flush(); ferr != nil && runErr == nil {
 		runErr = ferr
-	}
-
-	if err := tpl.Shred(*outPath); err != nil {
-		fmt.Fprintln(os.Stderr, "sm: warning: could not shred output:", err)
 	}
 
 	if runErr != nil {
@@ -167,7 +158,7 @@ func cmdInject(args []string) error {
 			}
 			return &exitCodeError{code: code}
 		}
-		return fmt.Errorf("run %s: %w", cmdArgs[0], runErr)
+		return fmt.Errorf("command failed: %s", redact.String(runErr.Error(), labels))
 	}
 	return nil
 }

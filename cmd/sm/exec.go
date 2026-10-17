@@ -19,6 +19,7 @@ import (
 	"github.com/karthikmprakash/agents-secret-manager/internal/manifest"
 	"github.com/karthikmprakash/agents-secret-manager/internal/redact"
 	"github.com/karthikmprakash/agents-secret-manager/internal/resolve"
+	"github.com/karthikmprakash/agents-secret-manager/internal/runner"
 	"github.com/karthikmprakash/agents-secret-manager/internal/store/vaultfile"
 )
 
@@ -30,6 +31,8 @@ func (e *exitCodeError) Error() string { return fmt.Sprintf("exit status %d", e.
 func cmdExec(args []string) error {
 	fs := flag.NewFlagSet("sm exec", flag.ContinueOnError)
 	profile := fs.String("profile", "", "load .env.<profile> between .env and .env.local")
+	only := fs.String("only", "", "comma-separated secret names to inject (default: all env secrets)")
+	service := fs.String("service", "", "comma-separated service names to inject (all their declared members)")
 	verbose := fs.Bool("v", false, "print what was resolved (names only)")
 	verboseLong := fs.Bool("verbose", false, "print what was resolved (names only)")
 	redactMode := fs.String("redact", "auto", "redact secret values in child output: auto | always | never")
@@ -41,7 +44,7 @@ func cmdExec(args []string) error {
 	}
 	cmdArgs := fs.Args()
 	if len(cmdArgs) == 0 {
-		return fmt.Errorf("usage: sm exec [--profile NAME] [--redact MODE] [-v] -- <command> [args...]")
+		return fmt.Errorf("usage: sm exec [--profile NAME] [--only A,B] [--service stripe] [--redact MODE] [-v] -- <command> [args...]")
 	}
 	switch *redactMode {
 	case "auto", "always", "never":
@@ -56,6 +59,15 @@ func cmdExec(args []string) error {
 	loaded, err := manifest.LoadLayers(cwd)
 	if err != nil {
 		return err
+	}
+
+	selected := splitNames(*only)
+	for _, svc := range splitNames(*service) {
+		members := loaded.Merged().ServiceMembers(svc)
+		if len(members) == 0 {
+			return fmt.Errorf("no secrets are declared with service %q", svc)
+		}
+		selected = append(selected, members...)
 	}
 
 	// .env files live next to the project manifest (cwd for global-only).
@@ -80,6 +92,7 @@ func cmdExec(args []string) error {
 	res, err := resolve.Build(loaded, v, projectDir, resolve.Options{
 		Profile:        *profile,
 		AllowPlaintext: os.Getenv("SM_ALLOW_PLAINTEXT") == "1",
+		Names:          selected,
 	})
 	if err != nil {
 		return err
@@ -98,7 +111,7 @@ func cmdExec(args []string) error {
 	var outW io.Writer = os.Stdout
 	var errW io.Writer = os.Stderr
 	var flushes []func() error
-	labels := labelByValue(res.Values)
+	labels := res.Redactions
 	if useRedact {
 		o := redact.New(os.Stdout, labels)
 		e := redact.New(os.Stderr, labels)
@@ -140,13 +153,12 @@ func cmdExec(args []string) error {
 		fmt.Fprintf(os.Stderr, "sm: redaction %s\n", onOff(useRedact))
 	}
 
-	child := exec.Command(cmdArgs[0], cmdArgs[1:]...)
-	child.Env = res.Env
+	child := runner.Command(cmdArgs, res.Env)
 	child.Stdin = os.Stdin
 	child.Stdout = outW
 	child.Stderr = errW
 
-	runErr := child.Run()
+	runErr := runner.Run(child)
 	for _, flush := range flushes {
 		if ferr := flush(); ferr != nil && runErr == nil {
 			runErr = ferr
@@ -162,20 +174,16 @@ func cmdExec(args []string) error {
 			}
 			return &exitCodeError{code: code}
 		}
-		return fmt.Errorf("run %s: %w", cmdArgs[0], runErr)
+		return fmt.Errorf("command failed: %s", redact.String(runErr.Error(), labels))
 	}
 	return nil
 }
 
-// labelByValue maps each injected value to a display name for redaction.
-func labelByValue(values map[string]string) map[string]string {
-	out := map[string]string{}
-	for envName, v := range values {
-		if v == "" {
-			continue
-		}
-		if prev, ok := out[v]; !ok || envName < prev {
-			out[v] = envName
+func splitNames(s string) []string {
+	var out []string
+	for _, name := range strings.Split(s, ",") {
+		if name = strings.TrimSpace(name); name != "" {
+			out = append(out, name)
 		}
 	}
 	return out

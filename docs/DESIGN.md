@@ -1,5 +1,12 @@
 # Agent Secrets Manager — v0.1 design
 
+> Historical design proposal, not a statement of implemented security guarantees.
+> The [current README](../README.md) and [implementation review](REVIEW.md)
+> supersede conflicting claims below. In particular: task processes receive
+> plaintext credentials; MCP is not a sandbox; TTL/scopes/hosts are advisory;
+> audit is not tamper-proof; file cleanup is not secure erasure; provider
+> rotation, a broker and portable recovery are not implemented.
+
 **Frozen 2026-10-17.** Manifest schema and the v0.1 CLI surface are locked.
 Post-freeze changes ship in v0.2 unless they break the schema — in which case
 the schema gets a version.

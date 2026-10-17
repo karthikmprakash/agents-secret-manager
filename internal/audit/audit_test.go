@@ -91,3 +91,13 @@ func TestVerifyEmpty(t *testing.T) {
 		t.Error("verify should not create the log")
 	}
 }
+
+func TestAppendRefusesDamagedLog(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(Path(dir), []byte(`{"action":"partial"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := Append(dir, Entry{Action: "inject"}); err == nil {
+		t.Fatal("appended onto incomplete entry")
+	}
+}

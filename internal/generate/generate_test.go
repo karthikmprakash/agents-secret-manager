@@ -34,3 +34,11 @@ func TestValue(t *testing.T) {
 		t.Error("expected length error")
 	}
 }
+
+func TestRejectTrailingGarbage(t *testing.T) {
+	for _, spec := range []string{"hex/32junk", "32 extra", "postgres/32/4"} {
+		if _, err := Value(spec); err == nil {
+			t.Fatalf("accepted %q", spec)
+		}
+	}
+}

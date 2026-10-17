@@ -32,18 +32,22 @@ type Options struct {
 	AllowPlaintext bool
 	// Environ overrides the process environment (tests). nil → os.Environ().
 	Environ []string
+	// Names optionally limits which declared secrets this invocation receives.
+	// This is cooperative least privilege, not an authorization boundary.
+	Names []string
 }
 
 // Result is the resolved child environment.
 type Result struct {
-	Env       []string          // KEY=VALUE pairs, sorted
-	Injected  []string          // manifest secret names injected (sorted)
-	DotenvRef []string          // env vars bound via sm:// refs (sorted)
-	Files     []string          // .env files read, lowest precedence first
-	FromFiles int               // vars sourced from .env files
-	Secrets   []string          // logical secret names used (sorted); safe to log
-	Values    map[string]string // env var → injected value; never log
-	Warnings  []string
+	Env        []string          // KEY=VALUE pairs, sorted
+	Injected   []string          // manifest secret names injected (sorted)
+	DotenvRef  []string          // env vars bound via sm:// refs (sorted)
+	Files      []string          // .env files read, lowest precedence first
+	FromFiles  int               // vars sourced from .env files
+	Secrets    []string          // logical secret names used (sorted); safe to log
+	Values     map[string]string // env var → injected value; never log
+	Redactions map[string]string // original + override values → labels; never log
+	Warnings   []string
 }
 
 type layer struct {
@@ -60,7 +64,7 @@ type decl struct {
 // Build resolves the child environment for the project that loaded describes.
 // projectDir is where the .env files live (the manifest's directory).
 func Build(loaded *manifest.Loaded, st Getter, projectDir string, opts Options) (*Result, error) {
-	res := &Result{}
+	res := &Result{Redactions: map[string]string{}}
 
 	files, err := loadChain(projectDir, opts.Profile)
 	if err != nil {
@@ -104,19 +108,62 @@ func Build(loaded *manifest.Loaded, st Getter, projectDir string, opts Options) 
 	}
 
 	merged := loaded.Merged()
+	// Filtering is broader than delivery: mask any registered, present,
+	// sensitive value even if this invocation selects only a subset.
+	// sensitive=false config values are injected but never masked.
+	for name, s := range merged.Secrets {
+		if !s.IsSensitive() {
+			continue
+		}
+		ref, err := manifest.ParseRef(s.Ref)
+		if err != nil {
+			return nil, err
+		}
+		val, found, err := st.Get(ref.Path)
+		if err != nil {
+			return nil, fmt.Errorf("cannot read secret %s", name)
+		}
+		if found && val != "" {
+			if old, ok := res.Redactions[val]; !ok || name < old {
+				res.Redactions[val] = name
+			}
+		}
+	}
+	if id := parent["SM_IDENTITY"]; id != "" {
+		res.Redactions[id] = "SM_IDENTITY"
+	}
+	selected := map[string]bool{}
+	for _, name := range opts.Names {
+		s, ok := merged.Secrets[name]
+		if !ok {
+			return nil, fmt.Errorf("selected secret %s is not declared", name)
+		}
+		if s.Transport != manifest.TransportEnv {
+			return nil, fmt.Errorf("selected secret %s cannot be delivered through env", name)
+		}
+		selected[name] = true
+	}
+	wants := func(name string) bool { return len(opts.Names) == 0 || selected[name] }
 
 	// Manifest-declared env secrets are injected under their own name.
 	manifestBindings := map[string]string{}
 	for name, s := range merged.Secrets {
+		if !wants(name) {
+			continue
+		}
 		switch s.Transport {
-		case manifest.TransportEnv, manifest.TransportGen:
+		case manifest.TransportEnv:
 			manifestBindings[name] = name
+		case manifest.TransportGen:
+			return nil, fmt.Errorf("secret %s uses unimplemented generated delivery; use env with add --generate", name)
 		}
 	}
-
 	// .env sm:// refs bind an env var to a declared secret.
 	refBindings := map[string]string{}
 	for k, d := range effective {
+		if lower, ok := shadowedRef[k]; ok && !d.ref {
+			d = lower
+		}
 		if !d.ref {
 			continue
 		}
@@ -128,7 +175,12 @@ func Build(loaded *manifest.Loaded, st Getter, projectDir string, opts Options) 
 		if !ok {
 			return nil, fmt.Errorf("%s: %s references sm://%s, but no [secrets.%s] is declared", d.source, k, logical, logical)
 		}
+		if !wants(logical) {
+			continue
+		}
 		switch s.Transport {
+		case manifest.TransportGen:
+			return nil, fmt.Errorf("secret %s: generated delivery is not implemented; generate at add-time with env delivery", logical)
 		case manifest.TransportProxy:
 			return nil, fmt.Errorf("secret %s: transport \"proxy\" cannot be injected as env (v0.3 broker)", logical)
 		case manifest.TransportFile:
@@ -167,6 +219,9 @@ func Build(loaded *manifest.Loaded, st Getter, projectDir string, opts Options) 
 			return nil, fmt.Errorf("secret %s is declared but missing from the vault (%s)", secretName, s.Ref)
 		}
 		values[envName] = val
+		if val != "" && s.IsSensitive() {
+			res.Redactions[val] = secretName
+		}
 	}
 
 	// Refuse plaintext shadows of vault-managed names.
@@ -179,6 +234,9 @@ func Build(loaded *manifest.Loaded, st Getter, projectDir string, opts Options) 
 			res.Warnings = append(res.Warnings,
 				fmt.Sprintf("%s: plaintext from %s overrides the vault (SM_ALLOW_PLAINTEXT=1)", envName, d.source))
 			values[envName] = d.value
+			if s, ok := merged.Secrets[envName]; ok && s.IsSensitive() {
+				res.Redactions[d.value] = envName
+			}
 			continue
 		}
 		return nil, fmt.Errorf("%s is set in plaintext (%s) but managed by the vault — remove it, or set SM_ALLOW_PLAINTEXT=1 to use the plaintext value", envName, d.source)
@@ -188,6 +246,16 @@ func Build(loaded *manifest.Loaded, st Getter, projectDir string, opts Options) 
 	envMap := map[string]string{}
 	fromFiles := 0
 	for k, d := range effective {
+		// Internal vault keys must never reach a subprocess or an agent transcript.
+		if k == "SM_IDENTITY" {
+			continue
+		}
+		if s, registered := merged.Secrets[k]; registered && (s.Transport != manifest.TransportEnv || !wants(k)) {
+			continue
+		}
+		if lower, ok := shadowedRef[k]; ok && !wants(strings.TrimPrefix(lower.value, "sm://")) {
+			continue
+		}
 		if d.ref {
 			continue
 		}
@@ -236,49 +304,7 @@ func Build(loaded *manifest.Loaded, st Getter, projectDir string, opts Options) 
 	}
 	sort.Strings(res.Secrets)
 
-	// Warn about sm:// declarations beaten by higher-precedence plaintext.
-	var shadowKeys []string
-	for k := range shadowedRef {
-		shadowKeys = append(shadowKeys, k)
-	}
-	sort.Strings(shadowKeys)
-	for _, k := range shadowKeys {
-		d := effective[k]
-		if d.ref {
-			continue
-		}
-		if _, managed := values[k]; managed {
-			continue // already reported by the shadow check
-		}
-		lower := shadowedRef[k]
-		// Suppress when the plaintext equals what the ref would resolve to —
-		// e.g. a nested sm exec injected the same value into the parent env.
-		if sameAsRefValue(merged, st, lower.value, d.value) {
-			continue
-		}
-		res.Warnings = append(res.Warnings,
-			fmt.Sprintf("%s: plaintext from %s overrides an sm:// declaration from %s", k, d.source, lower.source))
-	}
-
 	return res, nil
-}
-
-// sameAsRefValue reports whether plain equals the vault value behind refValue.
-func sameAsRefValue(merged *manifest.Manifest, st Getter, refValue, plain string) bool {
-	logical := strings.TrimPrefix(refValue, "sm://")
-	s, ok := merged.Secrets[logical]
-	if !ok {
-		return false
-	}
-	ref, err := manifest.ParseRef(s.Ref)
-	if err != nil {
-		return false
-	}
-	val, found, err := st.Get(ref.Path)
-	if err != nil || !found {
-		return false
-	}
-	return val == plain
 }
 
 // withCommonBins appends standard tool directories that GUI-launched processes
@@ -303,6 +329,9 @@ func withCommonBins(path string) string {
 	}
 	if len(add) == 0 {
 		return path
+	}
+	if path == "" {
+		return strings.Join(add, string(os.PathListSeparator))
 	}
 	return path + string(os.PathListSeparator) + strings.Join(add, string(os.PathListSeparator))
 }

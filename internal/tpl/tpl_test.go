@@ -34,6 +34,60 @@ func TestRenderUnknown(t *testing.T) {
 	}
 }
 
+func TestNeverOverwriteExistingFile(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "out")
+	if err := os.WriteFile(p, []byte("user work"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteFile(p, []byte("secret")); err == nil {
+		t.Fatal("overwrote file")
+	}
+	data, _ := os.ReadFile(p)
+	if string(data) != "user work" {
+		t.Fatal("existing file changed")
+	}
+}
+
+func TestShredDoesNotFollowSymlink(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "original")
+	link := filepath.Join(dir, "link")
+	if err := os.WriteFile(p, []byte("user work"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(p, link); err != nil {
+		t.Fatal(err)
+	}
+	if err := Shred(link); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(p)
+	if string(data) != "user work" {
+		t.Fatal("shred followed symlink")
+	}
+}
+
+func TestCleanupDoesNotOverwriteReplacement(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "out")
+	cleanup, err := Materialize(p, []byte("secret"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(p, p+".moved"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, []byte("user work"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := cleanup(); err == nil {
+		t.Fatal("replacement not detected")
+	}
+	data, _ := os.ReadFile(p)
+	if string(data) != "user work" {
+		t.Fatal("replacement overwritten")
+	}
+}
+
 func TestRenderUnterminated(t *testing.T) {
 	if _, err := Render("x {{sm:A", func(string) (string, error) { return "v", nil }); err == nil {
 		t.Fatal("expected an error")

@@ -7,9 +7,8 @@ import (
 	"strings"
 
 	"github.com/karthikmprakash/agents-secret-manager/internal/config"
-	"github.com/karthikmprakash/agents-secret-manager/internal/keys"
 	"github.com/karthikmprakash/agents-secret-manager/internal/manifest"
-	"github.com/karthikmprakash/agents-secret-manager/internal/store/vaultfile"
+	"github.com/karthikmprakash/agents-secret-manager/internal/secrets"
 )
 
 func cmdInit(args []string) error {
@@ -17,45 +16,10 @@ func cmdInit(args []string) error {
 		return fmt.Errorf("sm init takes no arguments")
 	}
 
-	// 1. Vault identity: Keychain-backed, or supplied via SM_IDENTITY.
-	switch {
-	case os.Getenv("SM_IDENTITY") != "":
-		fmt.Println("using identity from SM_IDENTITY (Keychain skipped)")
-	case keys.Exists():
-		fmt.Println("vault identity already exists in Keychain")
-	default:
-		if _, err := keys.Create(); err != nil {
-			return err
-		}
-		fmt.Println("created vault identity in Keychain (service \"sm\")")
-	}
-
-	identity, err := keys.Get()
-	if err != nil {
+	if err := secrets.Initialize(); err != nil {
 		return err
 	}
-
-	// 2. Vault file: materialize it (empty) if missing.
-	vaultPath, err := keys.VaultPath()
-	if err != nil {
-		return err
-	}
-	if _, err := os.Stat(vaultPath); os.IsNotExist(err) {
-		v, err := vaultfile.Open(vaultPath, identity)
-		if err != nil {
-			return err
-		}
-		if err := v.Save(); err != nil {
-			return err
-		}
-		fmt.Println("created empty vault:", vaultPath)
-	} else {
-		// Fail fast if the vault cannot be opened (wrong identity, corruption).
-		if _, err := vaultfile.Open(vaultPath, identity); err != nil {
-			return err
-		}
-		fmt.Println("vault ok:", vaultPath)
-	}
+	fmt.Println("vault verified")
 
 	// 3. Project manifest in the current directory.
 	cwd, err := os.Getwd()

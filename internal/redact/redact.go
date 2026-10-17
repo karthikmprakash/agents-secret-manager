@@ -6,9 +6,9 @@
 package redact
 
 import (
-	"bytes"
 	"io"
 	"sort"
+	"strings"
 )
 
 type pair struct {
@@ -18,27 +18,21 @@ type pair struct {
 
 // Writer is an io.Writer that masks registered secret values.
 type Writer struct {
-	out    io.Writer
-	pairs  []pair
-	maxLen int
-	buf    []byte
+	out   io.Writer
+	pairs []pair
+	buf   []byte
 }
 
 // New returns a redacting writer. secrets maps secret value → display name.
 func New(out io.Writer, secrets map[string]string) *Writer {
 	pairs := sortedPairs(secrets)
-	maxLen := 0
-	for _, p := range pairs {
-		if len(p.value) > maxLen {
-			maxLen = len(p.value)
-		}
-	}
-	return &Writer{out: out, pairs: pairs, maxLen: maxLen}
+	return &Writer{out: out, pairs: pairs}
 }
 
 // String masks registered values in s (used for audit command lines).
 func String(s string, secrets map[string]string) string {
-	return string(replaceAll([]byte(s), sortedPairs(secrets)))
+	out, _ := replace(s, sortedPairs(secrets), true)
+	return out
 }
 
 func sortedPairs(secrets map[string]string) []pair {
@@ -59,47 +53,16 @@ func sortedPairs(secrets map[string]string) []pair {
 }
 
 func (w *Writer) Write(p []byte) (int, error) {
-	if w.maxLen == 0 {
+	if len(w.pairs) == 0 {
 		return w.out.Write(p)
 	}
 	w.buf = append(w.buf, p...)
 
-	// Everything before safe is complete: no match starting there can extend
-	// beyond the buffer.
-	safe := len(w.buf) - (w.maxLen - 1)
-	if safe <= 0 {
-		return len(p), nil
-	}
-
-	emitEnd := safe
-	lo := safe - w.maxLen + 1
-	if lo < 0 {
-		lo = 0
-	}
-	// Defer a match that would straddle the emit boundary.
-	for _, pr := range w.pairs {
-		val := []byte(pr.value)
-		search := lo
-		for search < safe {
-			j := bytes.Index(w.buf[search:], val)
-			if j < 0 {
-				break
-			}
-			s := search + j
-			if s >= safe {
-				break
-			}
-			if s+len(val) > safe && s < emitEnd {
-				emitEnd = s
-			}
-			search = s + 1
-		}
-	}
-
-	if _, err := w.out.Write(replaceAll(w.buf[:emitEnd], w.pairs)); err != nil {
+	out, consumed := replace(string(w.buf), w.pairs, false)
+	if err := write(w.out, out); err != nil {
 		return 0, err
 	}
-	w.buf = append(w.buf[:0], w.buf[emitEnd:]...)
+	w.buf = append(w.buf[:0], w.buf[consumed:]...)
 	return len(p), nil
 }
 
@@ -108,14 +71,46 @@ func (w *Writer) Flush() error {
 	if len(w.buf) == 0 {
 		return nil
 	}
-	_, err := w.out.Write(replaceAll(w.buf, w.pairs))
+	out, _ := replace(string(w.buf), w.pairs, true)
+	err := write(w.out, out)
 	w.buf = nil
 	return err
 }
 
-func replaceAll(b []byte, pairs []pair) []byte {
-	for _, p := range pairs {
-		b = bytes.ReplaceAll(b, []byte(p.value), []byte("[redacted:"+p.name+"]"))
+// Leftmost, longest match. Never rescan generated markers (short secrets could
+// otherwise corrupt them). Only retain an actual partial prefix between writes.
+func replace(input string, pairs []pair, final bool) (string, int) {
+	var out strings.Builder
+	i := 0
+	for i < len(input) {
+		rest := input[i:]
+		matched := false
+		for _, p := range pairs {
+			if !final && len(rest) < len(p.value) && strings.HasPrefix(p.value, rest) {
+				return out.String(), i
+			}
+			if strings.HasPrefix(rest, p.value) {
+				out.WriteString("[redacted:" + p.name + "]")
+				i += len(p.value)
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			out.WriteByte(input[i])
+			i++
+		}
 	}
-	return b
+	return out.String(), i
+}
+
+func write(out io.Writer, text string) error {
+	if text == "" {
+		return nil
+	}
+	n, err := io.WriteString(out, text)
+	if err == nil && n != len(text) {
+		return io.ErrShortWrite
+	}
+	return err
 }

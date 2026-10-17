@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
 )
 
 var (
@@ -19,6 +20,11 @@ var (
 // Render replaces {{sm:NAME}} placeholders using resolve. Errors name the
 // secret, never a value.
 func Render(template string, resolve func(name string) (string, error)) (string, error) {
+	// Validate template syntax before inserting values. A literal placeholder
+	// inside a secret is data, not a second template to expand or reject.
+	if unterminated.MatchString(placeholder.ReplaceAllString(template, "")) {
+		return "", fmt.Errorf("malformed {{sm:NAME}} placeholder")
+	}
 	var firstErr error
 	out := placeholder.ReplaceAllStringFunc(template, func(m string) string {
 		if firstErr != nil {
@@ -39,24 +45,25 @@ func Render(template string, resolve func(name string) (string, error)) (string,
 	if firstErr != nil {
 		return "", firstErr
 	}
-	if unterminated.MatchString(out) {
-		return "", fmt.Errorf("unterminated {{sm:…}} placeholder")
-	}
 	return out, nil
 }
 
-// WriteFile writes data to path atomically with mode 0600, creating parents.
+// WriteFile exclusively creates path at 0600. Never destroy an existing file.
 func WriteFile(path string, data []byte) error {
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
-	tmp, err := os.CreateTemp(dir, ".sm-tpl-*")
+	tmp, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
 		return err
 	}
-	name := tmp.Name()
-	defer os.Remove(name) // no-op after a successful rename
+	ok := false
+	defer func() {
+		if !ok {
+			_ = os.Remove(path)
+		}
+	}()
 
 	if err := tmp.Chmod(0o600); err != nil {
 		tmp.Close()
@@ -69,16 +76,45 @@ func WriteFile(path string, data []byte) error {
 	if err := tmp.Close(); err != nil {
 		return err
 	}
-	return os.Rename(name, path)
+	ok = true
+	return nil
+}
+
+// Materialize returns a cleanup bound to the inode we created. A command may
+// replace the output path; do not overwrite a different file during cleanup.
+func Materialize(path string, data []byte) (func() error, error) {
+	if err := WriteFile(path, data); err != nil {
+		return nil, err
+	}
+	original, err := os.Lstat(path)
+	if err != nil {
+		return nil, err
+	}
+	return func() error {
+		current, err := os.Lstat(path)
+		if os.IsNotExist(err) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if !os.SameFile(original, current) {
+			return fmt.Errorf("output path was replaced; left the replacement untouched")
+		}
+		return Shred(path)
+	}, nil
 }
 
 // Shred overwrites path with random bytes and removes it. Best effort: the
 // filesystem may not overwrite in place (APFS is copy-on-write).
 func Shred(path string) error {
-	f, err := os.OpenFile(path, os.O_WRONLY, 0)
+	f, err := os.OpenFile(path, os.O_WRONLY|syscall.O_NOFOLLOW, 0)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
+		}
+		if fi, e := os.Lstat(path); e == nil && fi.Mode()&os.ModeSymlink != 0 {
+			return os.Remove(path)
 		}
 		return err
 	}

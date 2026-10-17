@@ -12,10 +12,10 @@ import (
 
 	"golang.org/x/term"
 
-	"github.com/karthikmprakash/agents-secret-manager/internal/keys"
 	"github.com/karthikmprakash/agents-secret-manager/internal/manifest"
 	"github.com/karthikmprakash/agents-secret-manager/internal/resolve"
-	"github.com/karthikmprakash/agents-secret-manager/internal/store/vaultfile"
+	"github.com/karthikmprakash/agents-secret-manager/internal/safeio"
+	"github.com/karthikmprakash/agents-secret-manager/internal/secrets"
 )
 
 func cmdImport(args []string) error {
@@ -24,6 +24,8 @@ func cmdImport(args []string) error {
 	all := fs.Bool("all", false, "import every plaintext entry without prompting")
 	dryRun := fs.Bool("dry-run", false, "print the plan without changing anything")
 	globalFlag := fs.Bool("global", false, "declare in the global manifest (~/.config/sm/manifest.toml) instead of the project")
+	serviceFlag := fs.String("service", "", "group the imported entries under a service name, e.g. stripe")
+	sensitiveFlag := fs.Bool("sensitive", true, "false marks the imported entries as plain config (not masked, not reported as leaks)")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
@@ -36,16 +38,13 @@ func cmdImport(args []string) error {
 	if err != nil {
 		return err
 	}
-	loaded, err := manifest.LoadLayers(cwd)
+	loaded, err := manifest.LoadOptional(cwd)
 	if err != nil {
-		if !*globalFlag {
-			return err
-		}
-		loaded = &manifest.Loaded{}
+		return err
 	}
 
 	baseDir := cwd
-	if loaded.ProjectPath != "" {
+	if !*globalFlag && loaded.ProjectPath != "" {
 		baseDir = filepath.Dir(loaded.ProjectPath)
 	}
 	path := *file
@@ -63,7 +62,7 @@ func cmdImport(args []string) error {
 
 	var targetPath string
 	if *globalFlag {
-		gp, _, err := manifest.EnsureGlobal()
+		gp, err := manifest.GlobalPath()
 		if err != nil {
 			return err
 		}
@@ -74,8 +73,6 @@ func cmdImport(args []string) error {
 		}
 		targetPath = loaded.ProjectPath
 	}
-
-	merged := loaded.Merged()
 
 	var selected []string
 	switch {
@@ -111,7 +108,12 @@ func cmdImport(args []string) error {
 	}
 
 	var toImport []string
+	seen := map[string]bool{}
 	for _, k := range selected {
+		if seen[k] {
+			continue
+		}
+		seen[k] = true
 		v := parsed[k]
 		if v == "" || isRefValue(v) {
 			continue
@@ -130,52 +132,34 @@ func cmdImport(args []string) error {
 		return nil
 	}
 
-	identity, err := keys.Get()
-	if err != nil {
-		return err
+	if *globalFlag {
+		if _, _, err := manifest.EnsureGlobal(); err != nil {
+			return err
+		}
 	}
-	vaultPath, err := keys.VaultPath()
-	if err != nil {
-		return err
+	service := strings.TrimSpace(*serviceFlag)
+	if service != "" && !manifest.ValidService(service) {
+		return fmt.Errorf("invalid service name %q (letters, digits, dot, dash, underscore; max 32)", service)
 	}
-	v, err := vaultfile.Open(vaultPath, identity)
-	if err != nil {
-		return err
+	var sensitive *bool
+	if !*sensitiveFlag {
+		no := false
+		sensitive = &no
 	}
-
 	refs := map[string]string{}
+	inputs := make([]secrets.Input, 0, len(toImport))
 	for _, k := range toImport {
-		value := parsed[k]
-		ref := "vault://" + strings.ToLower(k)
-		declared, isDeclared := merged.Secrets[k]
-		if isDeclared {
-			ref = declared.Ref
-		}
-		r, err := manifest.ParseRef(ref)
-		if err != nil {
-			return fmt.Errorf("%s: %w", k, err)
-		}
-
-		if isDeclared {
-			if existing, found, _ := v.Get(r.Path); found {
-				if existing != value {
-					fmt.Fprintf(os.Stderr, "sm: warning: vault value for %s differs from %s — kept the vault value\n", k, path)
-				}
-			} else if err := v.Set(r.Path, value); err != nil {
-				return err
-			}
-		} else {
-			if err := v.Set(r.Path, value); err != nil {
-				return err
-			}
-			if err := manifest.AppendSecret(targetPath, k, manifest.Secret{Ref: ref, Transport: manifest.TransportEnv}); err != nil {
-				return err
-			}
-		}
+		inputs = append(inputs, secrets.Input{
+			Name:   k,
+			Value:  parsed[k],
+			Secret: manifest.Secret{Service: service, Sensitive: sensitive},
+		})
 		refs[k] = "sm://" + k
 	}
-
-	if err := os.WriteFile(path, resolve.ReplaceValues(data, refs), 0o644); err != nil {
+	if err := secrets.AddBatch(targetPath, inputs, true); err != nil {
+		return err
+	}
+	if err := safeio.Write(path, resolve.ReplaceValues(data, refs), 0o600); err != nil {
 		return err
 	}
 

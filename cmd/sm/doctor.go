@@ -54,9 +54,16 @@ func cmdDoctor(args []string) error {
 	}
 
 	merged := loaded.Merged()
+	if len(merged.Secrets) == 0 {
+		fmt.Println("No registered secrets to check. Add or import credentials first; this is not a general secret-pattern scanner.")
+		return nil
+	}
 	names := make([]string, 0, len(merged.Secrets))
 	var secrets []scan.Secret
 	for name, s := range merged.Secrets {
+		if !s.IsSensitive() {
+			continue // config values are not leaks
+		}
 		names = append(names, name)
 		ref, err := manifest.ParseRef(s.Ref)
 		if err != nil {
@@ -74,9 +81,15 @@ func cmdDoctor(args []string) error {
 		Depth:      *depth,
 		NoHistory:  *noHistory,
 	}, secrets, names)
+	for _, warning := range res.Warnings {
+		fmt.Fprintln(os.Stderr, "sm: warning:", warning)
+	}
+	if len(res.Warnings) > 0 && len(res.Findings) == 0 {
+		return &exitCodeError{code: 2}
+	}
 
 	if len(res.Findings) == 0 {
-		fmt.Printf("clean — no plaintext copies of managed secrets found (%d files scanned, %d skipped)\n", res.Scanned, res.Skipped)
+		fmt.Printf("no registered values found in %d scanned files (%d skipped); encoded, rotated and unregistered values may not be detected\n", res.Scanned, res.Skipped)
 		return nil
 	}
 

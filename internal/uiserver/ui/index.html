@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark light">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f6f7f9">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0b0d11">
 <meta name="description" content="sm — local secrets for AI agents">
 <title>sm — secrets for agents</title>
 <style>
@@ -17,7 +19,7 @@
     --line-soft: #1a1f29;
     --text: #e8ebf1;
     --text-2: #a3abb9;
-    --text-3: #6e7787;
+    --text-3: #8792a3;
     --accent: #9db7ff;
     --accent-soft: rgba(157, 183, 255, .10);
     --ink: #eef1f6;
@@ -29,6 +31,7 @@
     --err: #ef8b8b;
     --err-soft: rgba(239, 139, 139, .12);
     --shadow: 0 28px 90px rgba(0, 0, 0, .5);
+    --shadow-menu: 0 10px 28px rgba(0, 0, 0, .45);
     --radius-lg: 16px;
     --radius-md: 10px;
     --radius-sm: 7px;
@@ -45,7 +48,7 @@
       --line-soft: #ebedf2;
       --text: #15181e;
       --text-2: #5a6270;
-      --text-3: #8b93a2;
+      --text-3: #657080;
       --accent: #3f5bd9;
       --accent-soft: rgba(63, 91, 217, .08);
       --ink: #15181e;
@@ -57,6 +60,7 @@
       --err: #b3261e;
       --err-soft: rgba(179, 38, 30, .08);
       --shadow: 0 28px 90px rgba(15, 23, 42, .16);
+      --shadow-menu: 0 8px 22px rgba(15, 23, 42, .12);
     }
   }
   * { box-sizing: border-box; }
@@ -163,14 +167,17 @@
 
   /* secrets */
   .list {
+    list-style: none; margin: 0; padding: 0;
     display: flex; flex-direction: column;
     border: 1px solid var(--line); border-radius: var(--radius-lg);
-    background: var(--panel); overflow: hidden;
+    background: var(--panel);
   }
+  .list > :first-child { border-top-left-radius: var(--radius-lg); border-top-right-radius: var(--radius-lg); }
+  .list > :last-child { border-bottom-left-radius: var(--radius-lg); border-bottom-right-radius: var(--radius-lg); }
   .secret {
     display: grid; grid-template-columns: 8px minmax(0, 1fr) auto auto;
     align-items: center; gap: 14px;
-    padding: 13px 16px; border-bottom: 1px solid var(--line-soft);
+    padding: 12px 16px; border-bottom: 1px solid var(--line-soft);
     transition: background .12s ease;
   }
   .secret:last-child { border-bottom: 0; }
@@ -178,10 +185,6 @@
   .secret-main { min-width: 0; }
   .secret-name {
     font: 500 12.5px var(--mono); letter-spacing: -0.01em;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  }
-  .secret-ref {
-    margin-top: 2px; font: 10.5px var(--mono); color: var(--text-3);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .chips { display: flex; gap: 6px; }
@@ -192,9 +195,29 @@
   }
   .chip.transport { font-family: var(--mono); }
   .chip.warn { color: var(--warn); border-color: var(--warn); background: var(--warn-soft); }
-  .secret-actions { display: flex; gap: 4px; opacity: 0; transition: opacity .12s ease; }
-  .secret:hover .secret-actions, .secret:focus-within .secret-actions { opacity: 1; }
-  @media (hover: none) { .secret-actions { opacity: 1; } }
+  .row-menu { position: relative; justify-self: end; }
+  .row-menu > summary {
+    display: grid; place-items: center; width: 26px; height: 26px;
+    border: 1px solid transparent; border-radius: 7px;
+    color: var(--text-3); cursor: pointer; list-style: none;
+  }
+  .row-menu > summary::-webkit-details-marker { display: none; }
+  .row-menu > summary:hover, .row-menu[open] > summary {
+    color: var(--text); border-color: var(--line); background: var(--panel);
+  }
+  .row-menu > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .row-menu .menu {
+    position: absolute; right: 0; top: calc(100% + 6px); z-index: 5;
+    display: flex; flex-direction: column; min-width: 176px; padding: 4px;
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; box-shadow: var(--shadow-menu);
+  }
+  .row-menu .menu button {
+    padding: 7px 10px; border: 0; border-radius: 6px; text-align: left;
+    background: transparent; color: var(--text); font-size: 12.5px; cursor: pointer;
+  }
+  .row-menu .menu button:hover { background: var(--panel-2); }
+  .row-menu .menu button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
   /* empty states */
   .empty {
@@ -254,18 +277,25 @@
   /* audit */
   .audit { border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--panel); overflow: hidden; }
   .audit-row {
-    display: grid; grid-template-columns: 62px 76px minmax(0, 1fr); gap: 14px;
+    display: grid; grid-template-columns: 62px 76px minmax(110px, .7fr) minmax(0, 1.5fr); gap: 14px;
     align-items: center; padding: 11px 16px; border-bottom: 1px solid var(--line-soft);
   }
   .audit-row:last-child { border-bottom: 0; }
+  .audit-head {
+    display: grid; grid-template-columns: 62px 76px minmax(110px, .7fr) minmax(0, 1.5fr); gap: 14px;
+    padding: 9px 16px; border-bottom: 1px solid var(--line-soft);
+    font: 600 10px var(--mono); letter-spacing: .05em; text-transform: uppercase; color: var(--text-3);
+  }
   .audit-time { font: 10.5px var(--mono); color: var(--text-3); }
   .audit-action { font: 10.5px var(--mono); color: var(--text-2); }
+  .audit-secrets { font: 11px var(--mono); color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .audit-cmd { font: 11.5px var(--mono); color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   /* sheet */
   .scrim { position: fixed; inset: 0; z-index: 40; background: rgba(4, 6, 10, .55); backdrop-filter: blur(2px); opacity: 0; transition: opacity .18s ease; }
   .scrim.open { opacity: 1; }
   .sheet {
+    overscroll-behavior: contain;
     position: fixed; top: 0; right: 0; bottom: 0; z-index: 50;
     width: min(430px, 100vw);
     display: flex; flex-direction: column;
@@ -286,6 +316,27 @@
     background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-md);
     color: var(--text);
   }
+  .field textarea { min-height: 180px; resize: vertical; padding: 10px; background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 10px; font: 12px/1.6 var(--mono); }
+  .notice { margin-bottom: 18px; padding: 18px 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+  .notice h2 { margin: 0 0 6px; font-size: 16px; }
+  .notice p { max-width: 65ch; margin: 0 0 12px; color: var(--text-2); }
+  .notice.error { border-color: var(--err); color: var(--err); }
+  .import-options { display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow: auto; }
+  .import-options label { display: flex; align-items: center; gap: 8px; overflow-wrap: anywhere; font-family: var(--mono); font-size: 12px; }
+  .agent > div:nth-child(2) { min-width: 0; flex: 1; }
+  .agent-detail { overflow-wrap: anywhere; }
+  .service-head { display: flex; align-items: center; gap: 10px; padding: 16px 16px 6px; list-style: none; color: var(--text-3); }
+  .service-head h2 { margin: 0; font: 600 10.5px var(--mono); letter-spacing: .05em; text-transform: uppercase; color: inherit; }
+  .service-head::after { content: ""; flex: 1; height: 1px; background: var(--line-soft); }
+  .sheet-foot { flex-wrap: wrap; }
+  .muted { color: var(--text-3); }
+  button, a { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+  .search:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (min-width: 901px) and (max-width: 1200px) {
+    .topbar { flex-wrap: wrap; gap: 10px; padding: 18px 24px; }
+    .headings { flex-basis: 100%; }
+    .search { flex: 1; min-width: 100px; }
+  }
   .field input:focus, .field select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
   .field small { font-size: 10.5px; color: var(--text-3); }
   .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -299,8 +350,39 @@
   .seg-btn.active { background: var(--panel); color: var(--text); }
   .seg-btn:disabled { opacity: .35; cursor: default; }
   .form-error { margin: 0; color: var(--err); font-size: 12px; }
-  .sheet-foot { display: flex; justify-content: flex-end; gap: 8px; padding-top: 2px; }
+  .sheet-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding-top: 2px; }
+  .foot-actions { display: flex; gap: 8px; margin-left: auto; }
+  .scope-pick { margin-right: auto; display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--text-3); }
+  .scope-pick select {
+    height: 30px; padding: 0 8px; border: 1px solid var(--line); border-radius: 8px;
+    background: var(--panel); color: var(--text); font-size: 12px;
+  }
+  .scope-note { font-size: 10.5px; color: var(--text-3); }
+  .value-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+  .flabel { font: 600 10.5px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+  .seg.mini { padding: 2px; border-radius: 8px; }
+  .seg.mini .seg-btn { flex: none; padding: 3px 10px; font-size: 11px; border-radius: 6px; }
+  .seg.inline { align-self: flex-start; width: auto; }
+  .seg.inline .seg-btn { flex: none; padding: 4px 12px; }
+  .input-row { position: relative; }
+  .input-row input { width: 100%; padding-right: 38px; }
+  .reveal {
+    position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+    width: 28px; height: 28px; display: grid; place-items: center;
+    border: 0; border-radius: 6px; background: transparent; color: var(--text-3); cursor: pointer;
+  }
+  .reveal:hover { color: var(--text); background: var(--panel-2); }
+  .reveal:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .field small.ok { color: var(--ok); }
   .rotate-name { margin: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--panel-2); font: 12px var(--mono); color: var(--text-2); }
+  .kind-row { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+  .kind-row small { font-size: 10.5px; color: var(--text-3); }
+  .config-block { padding: 14px 16px; border: 1px solid var(--line-soft); border-radius: 12px; background: var(--panel); }
+  .config-block h3 { margin: 0; font: 600 12px var(--mono); }
+  .config-files { margin: 6px 0 0; font-size: 11px; color: var(--text-3); overflow-wrap: anywhere; }
+  .config-code { margin: 10px 0 0; padding: 12px 14px; overflow: auto; background: var(--panel-2); border: 1px solid var(--line-soft); border-radius: 10px; }
+  .config-code code { font: 11px/1.55 var(--mono); color: var(--text-1); white-space: pre-wrap; overflow-wrap: anywhere; }
+  .config-block .btn { margin-top: 10px; }
 
   /* toasts + skeleton */
   .toasts { position: fixed; left: 50%; bottom: 22px; z-index: 60; display: flex; flex-direction: column; align-items: center; gap: 8px; transform: translateX(-50%); }
@@ -341,9 +423,27 @@
     .view { padding: 18px 16px 48px; }
   }
   @media (max-width: 640px) {
-    .secret { grid-template-columns: 8px minmax(0, 1fr) auto; }
-    .chips { display: none; }
-    .secret-actions { opacity: 1; }
+    .rail { gap: 8px; padding: 10px 12px; }
+    .rail .brand > div:not(.mark) { display: none; }
+    nav { flex: 1; min-width: 0; justify-content: space-between; gap: 0; }
+    .nav-item { font-size: 11.5px; gap: 4px; padding: 7px 6px; }
+    .nav-item svg { width: 14px; height: 14px; }
+    .secret { grid-template-columns: 8px minmax(0, 1fr) auto; padding: 12px 14px; }
+    .chips { grid-column: 2; flex-wrap: wrap; }
+    .row-menu { grid-column: 3; grid-row: 1 / 3; }
+    .row-menu > summary { width: 36px; height: 36px; }
+    .agent { flex-wrap: wrap; }
+    .agent-status { margin-left: 40px; }
+    .scan-controls { flex-wrap: wrap; }
+    .scan-controls .hint { flex-basis: 100%; }
+    .btn, .btn.small, .btn.icon { min-height: 44px; }
+    .field input, .field select { min-height: 44px; font-size: 16px; }
+    .scope-pick { width: 100%; margin-right: 0; }
+    .scope-pick select { min-height: 40px; font-size: 15px; }
+    .foot-actions { margin-left: 0; width: 100%; justify-content: flex-end; }
+    .audit-row { grid-template-columns: 60px 70px minmax(0, 1fr); }
+    .audit-head { grid-template-columns: 60px 70px minmax(0, 1fr); }
+    .audit-head span:last-child, .audit-cmd { display: none; }
     .row2 { grid-template-columns: 1fr; }
     .search kbd { display: none; }
   }
@@ -391,17 +491,18 @@
     <header class="topbar">
       <div class="headings">
         <h1 id="viewTitle">Secrets</h1>
-        <p id="viewSub">Names and status. Values never leave the vault.</p>
+        <p id="viewSub">One vault, available across your agents.</p>
       </div>
       <div class="spacer"></div>
       <div class="search" id="searchWrap">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="5.5"/><path d="m15 15 4.5 4.5"/></svg>
-        <input id="filter" placeholder="Filter secrets" aria-label="Filter secrets" spellcheck="false" autocomplete="off">
+        <input id="filter" name="filter" placeholder="Filter secrets…" aria-label="Filter secrets" spellcheck="false" autocomplete="off">
         <kbd>/</kbd>
       </div>
       <button class="btn icon ghost" id="refresh" aria-label="Refresh" title="Refresh">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/></svg>
       </button>
+      <button class="btn ghost" id="importBtn" type="button">Import secrets</button>
       <button class="btn primary" id="addBtn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
         Add secret
@@ -409,13 +510,20 @@
     </header>
 
     <section class="view" id="view-secrets">
-      <div class="list" id="secretList" aria-live="polite"></div>
+      <div class="notice" id="onboarding" hidden>
+        <h2>Your agents, one vault.</h2>
+        <p>Create your encrypted local vault, add credentials once, then configure your agents from the Agents tab. Nothing needs to go in each folder.</p>
+        <button class="btn primary" id="initializeBtn" type="button">Create vault</button>
+      </div>
+      <div class="notice error" id="loadError" role="alert" hidden></div>
+      <ul class="list" id="secretList" aria-live="polite"></ul>
       <div class="empty" id="secretsEmpty" hidden>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="9" r="4"/><path d="M10.5 12.5 9.5 20h5l-1-7.5"/></svg>
         <h2>No secrets yet</h2>
         <p>Add your first secret — global secrets are available in every folder and to every agent.</p>
         <code>sm add --global AWS_ACCESS_KEY_ID</code>
         <button class="btn small" id="emptyAdd" type="button">Add secret</button>
+        <button class="btn small ghost" id="emptyClear" type="button" hidden>Clear filter</button>
       </div>
     </section>
 
@@ -424,10 +532,11 @@
         <div class="panel-head">
           <div>
             <h2>Agent harnesses</h2>
-            <p>Wiring adds a local MCP server entry — no keys are written into agent configs. Agents get <code>secret_list</code> and <code>secret_run</code>.</p>
+            <p>Configure once, then reconnect or restart your agents. Status below checks configuration on disk, not a live connection. Credentials stay out of agent configs.</p>
           </div>
           <div class="right">
-            <button class="btn" id="wireAll">Connect all</button>
+            <button class="btn ghost" id="manualBtn" type="button">Manual setup</button>
+            <button class="btn" id="wireAll">Configure all</button>
           </div>
         </div>
         <div id="agentList"></div>
@@ -444,7 +553,7 @@
           <div class="right"><span class="badge" id="scanBadge" hidden></span></div>
         </div>
         <div class="scan-controls">
-          <label class="switch"><input type="checkbox" id="history"> include git history</label>
+          <label class="switch"><input type="checkbox" name="history" id="history"> include git history</label>
           <span class="hint">runs locally · values are never printed</span>
           <button class="btn" id="scanBtn">Run scan</button>
         </div>
@@ -453,6 +562,7 @@
     </section>
 
     <section class="view" id="view-audit" hidden>
+      <p class="hint" id="auditNotice">Last 50 events. Entries record attempts, not proof of command success.</p>
       <div class="audit" id="auditList"></div>
       <div class="empty" id="auditEmpty" hidden>
         <h2>No activity yet</h2>
@@ -467,7 +577,7 @@
   <header class="sheet-head">
     <div>
       <h2 id="sheetTitle">Add secret</h2>
-      <p id="sheetSub">Stored in the vault. Agents use it without seeing it.</p>
+      <p id="sheetSub">Stored once in the vault. Agents receive it at runtime — never in their context.</p>
     </div>
     <button class="btn icon ghost" id="sheetClose" type="button" aria-label="Close">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
@@ -477,46 +587,90 @@
   <form id="secretForm" novalidate>
     <div id="nameRow">
       <label class="field">Name
-        <input id="fName" placeholder="AWS_ACCESS_KEY_ID" autocomplete="off" spellcheck="false">
+        <input id="fName" name="name" placeholder="STRIPE_API_KEY" autocomplete="off" spellcheck="false" autocapitalize="characters">
+        <small id="nameHint">Uppercase environment variable name — letters, digits, underscore.</small>
       </label>
     </div>
     <div id="rotateRow" hidden>
       <p class="rotate-name" id="rotateName"></p>
     </div>
+    <div id="groupWrap" hidden>
+      <label class="field">Group
+        <input id="fGroup" list="groupOptions" placeholder="stripe" autocomplete="off" spellcheck="false">
+      </label>
+      <datalist id="groupOptions"></datalist>
+    </div>
 
-    <div>
-      <div class="seg" id="modeSeg" role="group" aria-label="Value source">
-        <button class="seg-btn active" type="button" data-mode="value">Value</button>
+    <div id="valueHead" class="value-head">
+      <span class="flabel">Value</span>
+      <div class="seg mini" id="modeSeg" role="group" aria-label="Value source">
+        <button class="seg-btn active" type="button" data-mode="value">Enter</button>
         <button class="seg-btn" type="button" data-mode="generate">Generate</button>
       </div>
     </div>
 
     <div id="valueWrap">
-      <label class="field">Value
-        <input id="fValue" type="password" autocomplete="new-password" placeholder="stored encrypted">
-      </label>
-    </div>
-    <div id="genWrap" hidden>
-      <label class="field">Spec
-        <input id="fGenerate" placeholder="hex/32" autocomplete="off" spellcheck="false">
-        <small>profile then length — alnum, hex or postgres (8–256)</small>
-      </label>
-    </div>
-
-    <div id="sheetOptions">
-      <div class="field">Scope
-        <div class="seg" id="scopeSeg" role="group" aria-label="Scope">
-          <button class="seg-btn active" type="button" data-scope="global">Global</button>
-          <button class="seg-btn" type="button" data-scope="project">Project</button>
+      <div class="field">
+        <div class="input-row">
+          <input id="fValue" name="value" type="password" autocomplete="new-password" placeholder="Enter or paste the value…" spellcheck="false" aria-label="Value">
+          <button class="reveal" id="revealValue" type="button" aria-label="Show value" aria-pressed="false">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.6"/></svg>
+          </button>
         </div>
       </div>
+      <div class="kind-row" id="kindRow">
+        <div class="seg inline" id="kindSeg" role="group" aria-label="Value kind">
+          <button class="seg-btn active" type="button" data-kind="secret">Secret</button>
+          <button class="seg-btn" type="button" data-kind="config">Plain config</button>
+        </div>
+        <small id="kindHint">Stored as a credential — masked in captured output.</small>
+      </div>
     </div>
+    <div id="genWrap" hidden>
+      <div class="row2">
+        <label class="field">Character set
+          <select id="fGenerateProfile" name="generateProfile">
+            <option value="alnum">Alphanumeric</option>
+            <option value="hex" selected>Hex</option>
+          </select>
+        </label>
+        <label class="field">Length
+          <input id="fGenerateLength" name="generateLength" type="number" inputmode="numeric" min="8" max="256" value="32">
+        </label>
+      </div>
+      <p class="hint">8–256 characters. Generated locally and stored in the vault.</p>
+    </div>
+
+    <section id="bulkFields" hidden>
+      <label class="field">Paste dotenv entries
+        <textarea id="bulkData" name="bulkData" spellcheck="false" autocomplete="off" placeholder="AWS_ACCESS_KEY_ID=…&#10;AWS_SECRET_ACCESS_KEY=…"></textarea>
+      </label>
+      <label class="field">Or choose an env file <input id="bulkFile" name="file" type="file" accept=".env,.txt,text/plain"></label>
+      <p class="hint">Preview shows names only. Choose which values to store globally. Your source file is not changed. Existing, differing values are never overwritten.</p>
+      <button class="btn" id="previewImport" type="button">Preview names</button>
+      <div class="import-options" id="importNames" aria-live="polite"></div>
+    </section>
+
+    <section id="configFields" hidden>
+      <div id="configList" class="muted">Loading…</div>
+    </section>
 
     <p class="form-error" id="formError" role="alert" hidden></p>
 
     <footer class="sheet-foot">
-      <button class="btn ghost" type="button" id="cancelBtn">Cancel</button>
-      <button class="btn primary" type="submit" id="saveBtn">Store secret</button>
+      <label class="scope-pick" id="scopeRow" hidden>
+        <span>Stored in</span>
+        <select id="fScope" aria-label="Store in">
+          <option value="global" selected>Global</option>
+          <option value="project">This project</option>
+        </select>
+        <span class="scope-note" id="scopeNote" hidden>Project needs sm init</span>
+      </label>
+      <div class="foot-actions">
+        <button class="btn ghost" type="button" id="discardBtn" hidden>Discard changes</button>
+        <button class="btn ghost" type="button" id="cancelBtn">Cancel</button>
+        <button class="btn primary" type="submit" id="saveBtn">Store secret</button>
+      </div>
     </footer>
   </form>
 </aside>
@@ -527,28 +681,31 @@
 (() => {
   "use strict";
 
-  const token = new URLSearchParams(location.search).get("token") || "";
-  if (token) history.replaceState({}, "", "/");
+  // The server exchanges the bootstrap URL for an HttpOnly session cookie.
+  // Remove the token immediately; refresh continues to work without JS storage.
+  if (new URLSearchParams(location.search).has("token")) history.replaceState({}, "", "/" + location.hash);
 
   const $ = (id) => document.getElementById(id);
   const views = {
-    secrets: ["Secrets", "Names and status. Values never leave the vault."],
+    secrets: ["Secrets", "One vault, available across your agents."],
     agents: ["Agents", "Connect the MCP server to the harnesses on this Mac."],
     scan: ["Leak scan", "Find plaintext copies of the secrets in your vault."],
-    audit: ["Audit", "Every command that used a secret. Names only."],
+    audit: ["Audit", "Secret access and changes. Names only."],
   };
   const state = {
     data: null,
     agents: null,
-    wired: new Set(),
     view: "secrets",
     filter: "",
     formMode: "value",
+    kind: "secret",
     scope: "global",
     sheet: null,
+    busy: false,
+    opener: null,
   };
 
-  // Brand marks for detected harnesses (Simple Icons paths, rendered inline).
+  // Brand marks for detected harnesses (Simple Icons / game-icons, rendered inline).
   const AGENT_LOGOS = {
     opencode: { bg: "#111214", path: "M22 24H2V0h20zM17 4.8H7v14.4h10z" },
     claude: {
@@ -560,7 +717,19 @@
       bg: "#0F0F0F",
       path: "M11.503.131 1.891 5.678a.84.84 0 0 0-.42.726v11.188c0 .3.162.575.42.724l9.609 5.55a1 1 0 0 0 .998 0l9.61-5.55a.84.84 0 0 0 .42-.724V6.404a.84.84 0 0 0-.42-.726L12.497.131a1.01 1.01 0 0 0-.996 0M2.657 6.338h18.55c.263 0 .43.287.297.515L12.23 22.918c-.062.107-.229.064-.229-.06V12.335a.59.59 0 0 0-.295-.51l-9.11-5.257c-.109-.063-.064-.23.061-.23",
     },
-    hermes: { bg: "#6E56CF", path: "M7 4h3v6h4V4h3v16h-3v-7h-4v7H7z" },
+    hermes: {
+      bg: "#0D1117",
+      viewBox: "0 0 512 512",
+      path: "M202.412 21.06c-2.189.065-4.715.577-7.795 1.643C149.244 38.411 80.172 79.747 18.965 98.262c10.858 6.727 22.689 12.663 34.941 17.37c13.696-6.286 27.073-12.537 38.414-18.808c13.887-7.678 24.612-15.672 29.078-22.199l13.204 9.035c-7.33 10.712-19.785 19.009-34.54 27.166c-7.337 4.057-15.276 8.01-23.468 11.904c7.515 1.809 15.064 3.09 22.533 3.707q5.068.419 10.057.456c15.845-9.826 30.838-22.51 35.67-31.631l14.138 7.488c-3.464 6.54-8.679 12.826-14.933 18.695c15.63-5.498 29.79-15.436 41.54-31.103l7.235-9.647l6.076 10.416c4.704 8.064 11.043 14.811 18.235 20.618c5.332-.816 10.034-1.374 14.855-1.649V79.084c-9.7-7.317-16-18.93-16-31.941a39.6 39.6 0 0 1 3.068-15.305c-2.539-3.553-5.16-6.348-7.793-8.072c-2.172-1.423-4.325-2.385-6.941-2.643a16 16 0 0 0-1.922-.063m106.258 0q-.513.014-1.004.063c-2.616.258-4.769 1.22-6.941 2.643c-2.634 1.724-5.254 4.52-7.793 8.072A39.6 39.6 0 0 1 296 47.143c0 13.011-6.3 24.624-16 31.941v30.996c5.003.289 10.454.932 14.855 1.649c7.192-5.807 13.531-12.554 18.235-20.618l6.076-10.416l7.234 9.647c11.75 15.667 25.911 25.605 41.541 31.103c-6.254-5.869-11.47-12.155-14.933-18.695l14.138-7.488c4.832 9.122 19.825 21.805 35.67 31.63a134 134 0 0 0 10.057-.454c7.47-.619 15.018-1.9 22.533-3.708c-8.192-3.894-16.131-7.847-23.469-11.904c-14.754-8.157-27.208-16.454-34.539-27.166l13.204-9.035c4.466 6.527 15.19 14.521 29.078 22.2c11.34 6.27 24.718 12.52 38.414 18.808c12.252-4.708 24.083-10.644 34.941-17.371c-61.207-18.515-130.279-59.85-175.652-75.559c-3.52-1.219-6.317-1.711-8.713-1.642zM256 24c-13.35 0-24 10.65-24 24s10.65 24 24 24s24-10.65 24-24s-10.65-24-24-24m-8 62.332v24.64c2.793.606 5.759 1.61 8 2.89c2.681-1.483 5.28-2.266 8-2.89v-24.64c-2.587.53-5.263.81-8 .81s-5.413-.28-8-.81m-12.547 39.654a76 76 0 0 0-4.674.2c-12.862.942-28.802 5.08-35.353 8.185c-14.907 7.066-21.148 13.791-24.215 19.988c-3.067 6.198-3.211 12.802-3.211 20.784c0 9.333 4.299 16.218 12.146 22.812s19.157 12.141 30.8 16.75c21.493 11.283 44.162 22.942 62.048 35.984c4.915 3.475 11.183 5.658 15.998 8.178c4.717-4.959 7.008-9.53 7.008-13.724c0-2.5-.667-5.262-1.893-8.182c-12.214-23.082-35.176-34.215-59.312-47.52l-.057.063c-10.371-4.023-20.014-6.361-26.738-6.361l-3.578-15.157c15.833-7.916 27.435-14.553 34.338-20.877c6.756-6.188 9.266-11.253 9.209-19.312c-4.007-1.756-8.557-1.851-12.516-1.81zm41.094 0c-4.174.141-9.299.064-12.516 1.81c-.057 8.06 2.453 13.125 9.21 19.313c6.902 6.324 18.504 12.961 34.337 20.877L304 183.143c-7.963 0-20.012 3.269-32.525 8.744c10.05 6.432 19.599 13.926 27.498 23.611c.695-.268 1.387-.518 2.082-.793c11.642-4.609 22.95-10.156 30.799-16.75C339.7 191.361 344 184.475 344 175.143c0-7.982-.144-14.586-3.21-20.784c-3.068-6.197-9.309-12.922-24.216-19.988c-6.55-3.105-22.491-7.243-35.353-8.185a76 76 0 0 0-4.674-.2M256 151.77a49.3 49.3 0 0 1-6.434 7.138c-.508.466-1.035.926-1.566 1.383v17.15a160 160 0 0 1 8.008 3.92a164 164 0 0 1 7.992-3.92v-17.15a68 68 0 0 1-1.566-1.383A49.3 49.3 0 0 1 256 151.77m-37.537 83.896c-1.594 3.4-2.463 6.61-2.463 9.477c0 4.833 3.03 10.165 9.322 16.015s15.368 11.666 24.686 17.06c9.318 5.395 18.832 10.38 26.472 15.339c3.82 2.48 7.189 4.92 9.995 7.81S292 307.976 292 313.143c0 4.25-2.151 8.289-4.693 10.804c-2.543 2.516-5.357 4.063-8.274 5.467c-2.293 1.104-4.71 2.104-7.16 3.098c6.558 4.82 12.595 10.053 17.467 15.232c2.72-1.247 5.468-2.497 8.181-3.807c6.982-3.37 13.564-7.126 17.93-11.242c4.367-4.115 6.549-7.97 6.549-13.552c0-9.945-3.598-17.446-9.586-24.297c-5.988-6.852-14.492-12.712-23.363-17.746c-8.87-5.035-17.995-9.213-25.438-13.438c-3.721-2.112-7.045-4.194-9.908-6.88c-.146-.138-.29-.291-.435-.434c-10.483-7.04-23.998-15.262-34.807-20.682m2.406 42.647c-8.107 4.759-15.766 10.22-21.283 16.533c-5.988 6.85-9.586 14.352-9.586 24.297c0 5.583 2.182 9.437 6.549 13.552c4.366 4.116 10.948 7.872 17.93 11.243c2.64 1.274 5.3 2.493 7.94 3.708c19.051 9.787 36.7 19.107 53.985 23.813c4.034-1.373 4.848-5.133 3.936-9.729c-14.856-14.943-29.808-23.803-47.373-32.316c-2.917-1.404-5.731-2.951-8.274-5.467S220 317.393 220 313.143c0-5.167 2.72-8.885 5.525-11.776s6.174-5.33 9.995-7.81a158 158 0 0 1 4.373-2.721c-6.53-3.83-13.092-7.935-19.024-12.524zM256 299.998c-2.85 1.615-5.56 3.17-8 4.64v13.602c.75.346 1.504.714 2.258 1.082c1.845.76 3.75 1.558 5.74 2.461c2.81-1.274 5.521-2.389 8.002-3.388v-13.756a337 337 0 0 0-8-4.641m-17.795 73.816c.588 4.245 2.564 8.12 5.824 12.147c3.933 4.857 9.67 9.59 15.723 14.059s12.365 8.641 17.643 13.166c5.277 4.524 10.605 9.79 10.605 17.957c0 9.9-5.82 17.934-12.969 27s-16.35 18.536-25.51 27.273c-2.047 1.953-3.986 3.667-6.005 5.53c8.23-4.31 16.77-9.533 24.816-15.385C290.729 459.27 308 437.905 308 423.143c0-4.467-1.67-8.043-4.982-11.957s-8.27-7.772-13.592-11.48c-5.322-3.71-10.947-7.234-15.762-11.368a56 56 0 0 1-1.666-1.494c-12.987-3.453-23.893-8.06-33.793-13.03m-7.873 20.582c-2.574 1.786-5.2 3.527-7.758 5.31c-5.321 3.708-10.28 7.565-13.592 11.48c-3.311 3.914-4.982 7.49-4.982 11.957c0 7.314 3.964 16.342 11.316 25.61c6.386 8.05 15.135 16.148 24.827 23.481a385 385 0 0 0 5.076-4.976c-2.796-3.028-5.456-6.053-7.871-9.033C230.003 449.162 224 441.16 224 431.143c0-8.167 5.328-13.433 10.605-17.957c2.485-2.13 5.21-4.181 8.018-6.223c-3.918-3.258-7.718-6.846-11.027-10.934a53 53 0 0 1-1.264-1.633m25.662 22.666c-2.896 2.081-5.66 4.071-7.994 5.872v22.921a70 70 0 0 0 1.777 2.297c1.95 2.407 4.133 4.909 6.467 7.457c2.24-2.519 4.349-4.995 6.225-7.375c.536-.68 1.04-1.353 1.531-2.023v-23.277c-2.346-1.81-5.09-3.778-8.006-5.872",
+    },
+    codex: {
+      bg: "#0F0F0F",
+      path: "M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z",
+    },
+    deepseek: {
+      bg: "#4D6BFE",
+      path: "M23.748 4.651c-.254-.124-.364.113-.512.233-.051.04-.094.09-.137.137-.372.397-.806.657-1.373.626-.829-.046-1.537.214-2.163.848-.133-.782-.575-1.248-1.247-1.548-.352-.155-.708-.311-.955-.65-.172-.24-.219-.509-.305-.774-.055-.16-.11-.323-.293-.35-.2-.031-.278.136-.356.276-.313.572-.434 1.202-.422 1.84.027 1.436.633 2.58 1.838 3.393.137.094.172.187.129.323-.082.28-.18.553-.266.833-.055.179-.137.218-.328.14a5.5 5.5 0 0 1-1.737-1.179c-.857-.828-1.631-1.743-2.597-2.46a12 12 0 0 0-.689-.47c-.985-.957.13-1.743.387-1.836.27-.098.094-.433-.778-.428-.872.003-1.67.295-2.687.685a3 3 0 0 1-.465.136 9.6 9.6 0 0 0-2.883-.101c-1.885.21-3.39 1.1-4.497 2.622C.082 8.776-.231 10.854.152 13.02c.403 2.284 1.568 4.175 3.36 5.653 1.857 1.533 3.997 2.284 6.438 2.14 1.482-.085 3.132-.284 4.994-1.86.47.234.962.328 1.78.398.629.058 1.235-.031 1.705-.129.735-.155.684-.836.418-.961-2.155-1.004-1.682-.595-2.112-.926 1.095-1.295 2.768-3.598 3.284-6.733.05-.346.115-.834.108-1.114-.004-.171.035-.238.23-.257a4.2 4.2 0 0 0 1.545-.475c1.397-.763 1.96-2.016 2.093-3.517.02-.23-.004-.467-.247-.588M11.58 18.168c-2.088-1.642-3.101-2.183-3.52-2.16-.39.024-.32.472-.234.763.09.288.207.487.371.74.114.167.192.416-.113.603-.673.416-1.842-.14-1.897-.168-1.361-.801-2.5-1.86-3.301-3.306-.775-1.393-1.225-2.888-1.299-4.482-.02-.385.094-.522.477-.592a4.7 4.7 0 0 1 1.53-.038c2.131.311 3.946 1.264 5.467 2.774.868.86 1.525 1.887 2.202 2.89.72 1.066 1.494 2.082 2.48 2.915.348.291.626.513.892.677-.802.09-2.14.109-3.055-.615zm1.001-6.44a.306.306 0 0 1 .415-.287.3.3 0 0 1 .113.074.3.3 0 0 1 .086.214c0 .17-.136.307-.308.307a.303.303 0 0 1-.306-.307m3.11 1.596c-.2.081-.4.151-.591.16a1.25 1.25 0 0 1-.798-.254c-.274-.23-.47-.358-.551-.758a1.7 1.7 0 0 1 .015-.588c.07-.327-.007-.537-.238-.727-.188-.156-.426-.199-.689-.199a.6.6 0 0 1-.254-.078.253.253 0 0 1-.114-.358 1 1 0 0 1 .192-.21c.356-.202.767-.136 1.146.016.352.144.618.408 1.001.782.392.451.462.576.685.915.176.264.336.536.446.848.066.194-.02.353-.25.45",
+    },
     gemini: {
       bg: "#8E75B2",
       path: "M11.04 19.32Q12 21.51 12 24q0-2.49.93-4.68.96-2.19 2.58-3.81t3.81-2.55Q21.51 12 24 12q-2.49 0-4.68-.93a12.3 12.3 0 0 1-3.81-2.58 12.3 12.3 0 0 1-2.58-3.81Q12 2.49 12 0q0 2.49-.96 4.68-.93 2.19-2.55 3.81a12.3 12.3 0 0 1-3.81 2.58Q2.49 12 0 12q2.49 0 4.68.96 2.19.93 3.81 2.55t2.55 3.81",
@@ -590,7 +759,8 @@
   async function api(path, options = {}) {
     const res = await fetch(path, {
       ...options,
-      headers: { ...(options.headers || {}), Authorization: "Bearer " + token },
+      credentials: "same-origin",
+      headers: { ...(options.headers || {}) },
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || res.statusText);
@@ -609,11 +779,15 @@
 
   function shortPath(path) {
     if (!path) return "";
-    return path.length > 42 ? "…" + path.slice(-40) : path;
+    // Home-relative for display; CSS ellipsis handles the rest and the title
+    // attribute keeps the full path.
+    return path.replace(/^(?:\/Users\/[^/]+|\/home\/[^/]+|\/root)(?=\/)/, "~");
   }
 
   function setView(name) {
+    if (!views[name]) name = "secrets";
     state.view = name;
+    history.replaceState({}, "", "/#" + name);
     document.querySelectorAll(".nav-item").forEach((btn) => {
       const active = btn.dataset.view === name;
       btn.classList.toggle("active", active);
@@ -626,6 +800,7 @@
     for (const key of Object.keys(views)) $(`view-${key}`).hidden = key !== name;
     $("searchWrap").hidden = name !== "secrets";
     $("addBtn").hidden = name !== "secrets";
+    $("importBtn").hidden = name !== "secrets";
     if (name === "agents") loadAgents();
   }
 
@@ -647,29 +822,42 @@
   }
 
   async function loadState() {
-    skeletonSecrets();
+    if (!state.data) skeletonSecrets();
     try {
       const data = await api("/api/state");
       state.data = data;
+      $("loadError").hidden = !data.vaultError;
+      $("loadError").textContent = data.vaultError || "";
+      $("onboarding").hidden = data.initialized || !!data.vaultError;
+      $("addBtn").disabled = $("importBtn").disabled = $("emptyAdd").disabled = !data.initialized || !!data.vaultError;
+      $("auditNotice").textContent = data.auditError || "Last 50 events. Entries record attempts, not proof of command success.";
       $("navCount").textContent = data.secrets.length ? String(data.secrets.length) : "";
       $("vaultPath").textContent = shortPath(data.vault);
       $("vaultPath").title = data.vault || "";
       const missing = data.secrets.filter((s) => s.status !== "present").length;
       $("vaultState").textContent = data.secrets.length
-        ? missing ? missing + " missing" : data.secrets.length + " secrets"
+        ? missing ? missing + " missing" : data.secrets.length + (data.secrets.length === 1 ? " secret" : " secrets")
         : "vault empty";
       $("vaultDot").className = "dot " + (missing ? "warn" : "ok");
+      if (!data.initialized || data.vaultError) {
+        $("vaultState").textContent = data.vaultError ? "Vault unavailable" : "Not initialized";
+        $("vaultDot").className = "dot warn";
+      }
 
-      const projectBtn = document.querySelector('#scopeSeg [data-scope="project"]');
-      projectBtn.disabled = !data.projectManifest;
+      const projectOpt = document.querySelector('#fScope option[value="project"]');
+      projectOpt.disabled = !data.projectManifest;
+      $("scopeNote").hidden = !!data.projectManifest;
       if (!data.projectManifest && state.scope === "project") setScope("global");
 
       renderSecrets();
       renderAudit();
     } catch (err) {
-      toast("Could not load the vault: " + err.message);
-      $("secretList").textContent = "";
-      $("secretsEmpty").hidden = false;
+      $("loadError").textContent = "Could not load the vault. " + err.message + ". Refresh to retry.";
+      $("loadError").hidden = false;
+      $("vaultState").textContent = "Unavailable";
+      $("vaultDot").className = "dot warn";
+      $("addBtn").disabled = $("importBtn").disabled = true;
+      if (!state.data) { $("secretList").hidden = true; $("secretsEmpty").hidden = true; }
     }
   }
 
@@ -682,7 +870,7 @@
     list.textContent = "";
     if (!secrets.length) {
       list.hidden = true;
-      empty.hidden = false;
+      empty.hidden = !state.data?.initialized || !!state.data?.vaultError;
       const filtered = needle.length > 0;
       empty.querySelector("h2").textContent = filtered ? "No matches" : "No secrets yet";
       empty.querySelector("p").textContent = filtered
@@ -692,57 +880,64 @@
       code.hidden = filtered;
       code.textContent = "sm add --global AWS_ACCESS_KEY_ID";
       $("emptyAdd").hidden = filtered;
+      $("emptyClear").hidden = !filtered;
       return;
     }
 
     list.hidden = false;
     empty.hidden = true;
-    for (const secret of secrets) list.append(secretRow(secret));
+    const groups = new Map();
+    for (const secret of secrets) {
+      const key = secret.service || "";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(secret);
+    }
+    const groupKeys = Array.from(groups.keys()).sort((a, b) => (!a ? 1 : !b ? -1 : a.localeCompare(b)));
+    const anyGroup = groupKeys.some((key) => key !== "");
+    for (const key of groupKeys) {
+      if (key) list.append(el("li", { class: "service-head" }, [el("h2", { text: key })]));
+      else if (anyGroup) list.append(el("li", { class: "service-head" }, [el("h2", { text: "Ungrouped" })]));
+      for (const secret of groups.get(key)) list.append(secretRow(secret));
+    }
   }
 
   function secretRow(secret) {
     const present = secret.status === "present";
-    const actions = el("div", { class: "secret-actions" }, [
-      el("button", {
-        class: "btn small ghost",
-        type: "button",
-        text: "Copy ref",
-        title: "Copy sm://" + secret.name,
-        onclick: () => copyRef(secret.name),
-      }),
-      el("button", {
-        class: "btn small",
-        type: "button",
-        text: "Rotate",
-        onclick: () => openSheet("rotate", secret),
-      }),
-    ]);
+    const menu = el("details", { class: "row-menu" });
+    const summary = el("summary", { title: secret.ref, "aria-label": "Actions for " + secret.name });
+    summary.innerHTML =
+      '<svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>';
+    const menuList = el("div", { class: "menu" });
+    const item = (label, fn) =>
+      el("button", { type: "button", text: label, onclick: () => { menu.open = false; fn(); } });
+    menuList.append(item("Copy ref", () => copyRef(secret.name)));
+    menuList.append(item(secret.service ? "Move to group…" : "Add to group…", () => openSheet("group", secret)));
+    menuList.append(item("Rotate…", () => openSheet("rotate", secret)));
+    menu.append(summary, menuList);
 
     const chips = el("div", { class: "chips" }, [
       el("span", { class: "chip", text: secret.scope }),
+      secret.sensitive === false ? el("span", { class: "chip", text: "config" }) : null,
       secret.transport !== "env"
         ? el("span", { class: "chip transport", text: secret.transport })
         : null,
-      present ? null : el("span", { class: "chip warn", text: "missing" }),
+      present ? null : el("span", { class: "chip warn", text: secret.status }),
     ]);
 
     return el("li", { class: "secret" }, [
       el("span", { class: "dot " + (present ? "ok" : "warn"), title: present ? "present" : "missing" }),
       el("div", { class: "secret-main" }, [
-        el("div", { class: "secret-name", text: secret.name, title: secret.name }),
-        el("div", { class: "secret-ref", text: secret.ref }),
+        el("div", { class: "secret-name", text: secret.name, translate: "no" }),
       ]),
       chips,
-      actions,
+      menu,
     ]);
   }
 
-  function copyRef(name) {
+  async function copyRef(name) {
     const ref = "sm://" + name;
-    navigator.clipboard?.writeText(ref).then(
-      () => toast("Copied " + ref),
-      () => toast("Copy failed — use " + ref)
-    );
+    try { await navigator.clipboard.writeText(ref); toast("Copied " + ref); }
+    catch { toast("Clipboard unavailable. Reference: " + ref); }
   }
 
   async function loadAgents(force = false) {
@@ -792,21 +987,23 @@
     const node = el("div", { class: "agent-mark logo" });
     node.style.background = logo.bg;
     node.innerHTML =
-      '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" d="' + logo.path + '"/></svg>';
+      '<svg viewBox="' + (logo.viewBox || "0 0 24 24") + '" aria-hidden="true"><path fill="#fff" d="' +
+      logo.path +
+      '"/></svg>';
     return node;
   }
 
   function agentRow(agent) {
-    const wired = state.wired.has(agent.name);
+    const wired = agent.status === "configured";
     const status = el("span", {
       class: "agent-status" + (wired ? " ok" : ""),
-      text: wired ? "Connected" : "Not connected",
+      text: agent.status || "Unknown",
     });
-    const btn = el("button", { class: "btn small", type: "button", text: wired ? "Reconnect" : "Connect" });
+    const btn = el("button", { class: "btn small", type: "button", text: wired ? "Update config" : "Configure" });
 
     btn.addEventListener("click", async () => {
       btn.disabled = true;
-      btn.textContent = "Connecting…";
+      btn.textContent = "Configuring…";
       try {
         const res = await api("/api/setup", {
           method: "POST",
@@ -814,15 +1011,15 @@
           body: JSON.stringify({ only: agent.name }),
         });
         const result = (res.results || [])[0];
-        if (result && result.failed) {
+        if (!result || result.failed) {
           status.textContent = "Failed";
           status.className = "agent-status err";
-          toast(result.status);
+          toast(result?.status || "No configuration result. Refresh to retry.");
         } else {
-          state.wired.add(agent.name);
-          status.textContent = "Connected";
+          agent.status = "configured";
+          status.textContent = "Configured";
           status.className = "agent-status ok";
-          toast(agent.name + " connected");
+          toast(agent.name + ": configuration saved. Reconnect or restart the agent.");
         }
       } catch (err) {
         status.textContent = "Failed";
@@ -830,7 +1027,7 @@
         toast(err.message);
       }
       btn.disabled = false;
-      btn.textContent = "Reconnect";
+      btn.textContent = "Update config";
     });
 
     return el("div", { class: "agent" }, [
@@ -844,10 +1041,23 @@
     ]);
   }
 
+  $("manualBtn").addEventListener("click", () => openSheet("config"));
+
+  document.addEventListener("click", (event) => {
+    document.querySelectorAll("details.row-menu[open]").forEach((menu) => {
+      if (!menu.contains(event.target)) menu.open = false;
+    });
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      document.querySelectorAll("details.row-menu[open]").forEach((menu) => { menu.open = false; });
+    }
+  });
+
   $("wireAll").addEventListener("click", async (event) => {
     const btn = event.currentTarget;
     btn.disabled = true;
-    btn.textContent = "Connecting…";
+    btn.textContent = "Configuring…";
     try {
       const res = await api("/api/setup", {
         method: "POST",
@@ -855,15 +1065,18 @@
         body: "{}",
       });
       const results = res.results || [];
-      for (const result of results) if (!result.failed) state.wired.add(result.name);
+      for (const result of results) if (!result.failed) {
+        const agent = state.agents?.find(a => a.name === result.name);
+        if (agent) agent.status = "configured";
+      }
       const failed = results.filter((r) => r.failed).length;
       renderAgents();
-      toast(failed ? failed + " harness(es) failed" : "All harnesses connected");
+      toast(failed ? failed + " harness(es) failed" : "Configurations saved. Reconnect or restart your agents.");
     } catch (err) {
       toast(err.message);
     }
     btn.disabled = false;
-    btn.textContent = "Connect all";
+    btn.textContent = "Configure all";
   });
 
   $("scanBtn").addEventListener("click", async (event) => {
@@ -883,9 +1096,9 @@
       });
       out.textContent = res.output || "(no output)";
       badge.hidden = false;
-      badge.textContent = res.exit === 0 ? "clean" : "findings";
+      badge.textContent = res.exit === 0 ? "clean" : res.exit === 1 ? "findings" : "scan incomplete";
       badge.className = "badge " + (res.exit === 0 ? "ok" : "err");
-      toast(res.exit === 0 ? "Scan clean" : "Findings reported");
+      toast(res.exit === 0 ? "Scan complete — no known values found" : res.exit === 1 ? "Scan complete — findings to review" : "Scan could not finish");
     } catch (err) {
       out.textContent = err.message;
     }
@@ -900,13 +1113,24 @@
     $("auditEmpty").hidden = entries.length > 0;
     list.hidden = entries.length === 0;
 
+    if (entries.length) {
+      list.append(el("div", { class: "audit-head" }, [
+        el("span", { text: "Time" }),
+        el("span", { text: "Action" }),
+        el("span", { text: "Secrets" }),
+        el("span", { text: "Command" }),
+      ]));
+    }
+
     for (const entry of entries) {
+      const secretNames = (entry.secrets || []).join(", ");
       list.append(el("div", { class: "audit-row" }, [
-        el("span", { class: "audit-time", text: (entry.ts || "").slice(11, 19) }),
+        el("time", { class: "audit-time", text: entry.ts ? new Intl.DateTimeFormat(undefined, {month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}).format(new Date(entry.ts)) : "", datetime: entry.ts }),
         el("span", { class: "audit-action", text: entry.action || "inject" }),
+        el("span", { class: "audit-secrets", text: secretNames || "—", title: secretNames }),
         el("span", {
           class: "audit-cmd",
-          text: entry.cmd || (entry.secrets || []).join(", "),
+          text: entry.cmd || "",
           title: entry.cmd || "",
         }),
       ]));
@@ -917,6 +1141,7 @@
     state.formMode = mode;
     document.querySelectorAll("#modeSeg .seg-btn").forEach((btn) => {
       btn.classList.toggle("active", btn.dataset.mode === mode);
+      btn.setAttribute("aria-pressed", String(btn.dataset.mode === mode));
     });
     $("valueWrap").hidden = mode !== "value";
     $("genWrap").hidden = mode !== "generate";
@@ -924,46 +1149,163 @@
 
   function setScope(scope) {
     state.scope = scope;
-    document.querySelectorAll("#scopeSeg .seg-btn").forEach((btn) => {
-      btn.classList.toggle("active", btn.dataset.scope === scope);
+    $("fScope").value = scope;
+  }
+
+  function renderNameMeta() {
+    const name = $("fName").value.trim();
+    const hint = $("nameHint");
+    if (!name) {
+      hint.textContent = "Uppercase environment variable name — letters, digits, underscore.";
+      hint.classList.remove("ok");
+    } else if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
+      hint.textContent = "Referenced as sm://" + name;
+      hint.classList.add("ok");
+    } else {
+      hint.textContent = "Use letters, digits and underscore, starting with a letter or underscore.";
+      hint.classList.remove("ok");
+    }
+  }
+
+  function setKind(kind) {
+    state.kind = kind;
+    document.querySelectorAll("#kindSeg .seg-btn").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.kind === kind);
+      btn.setAttribute("aria-pressed", String(btn.dataset.kind === kind));
     });
+    $("kindHint").textContent = kind === "config"
+      ? "Injected but never masked — for base URLs and model names."
+      : "Stored as a credential — masked in captured output.";
+    if (state.sheet?.mode === "add") $("saveBtn").textContent = kind === "config" ? "Store config" : "Store secret";
+  }
+
+  async function loadConfigSnippets() {
+    const list = $("configList");
+    list.textContent = "Loading…";
+    try {
+      const data = await api("/api/mcp-config");
+      list.textContent = "";
+      list.classList.remove("muted");
+      for (const snippet of data.snippets) {
+        const block = el("div", { class: "config-block" });
+        block.append(el("h3", { text: snippet.agents.join(", ") }));
+        for (const file of snippet.files) block.append(el("p", { class: "config-files", text: file }));
+        const pre = el("pre", { class: "config-code" });
+        pre.append(el("code", { text: snippet.body }));
+        block.append(pre);
+        const copy = el("button", { class: "btn small", type: "button", text: "Copy " + snippet.lang.toUpperCase() });
+        copy.addEventListener("click", async () => {
+          try {
+            await navigator.clipboard.writeText(snippet.body);
+            toast("Copied");
+          } catch (err) {
+            const ta = document.createElement("textarea");
+            ta.value = snippet.body;
+            document.body.append(ta);
+            ta.select();
+            document.execCommand("copy");
+            ta.remove();
+            toast("Copied");
+          }
+        });
+        block.append(copy);
+        list.append(block);
+      }
+      if (state.sheet?.mode === "config") $("secretForm").scrollTop = 0;
+    } catch (err) {
+      list.textContent = "Could not load snippets: " + err.message;
+    }
   }
 
   function openSheet(mode, secret) {
-    state.sheet = { mode, name: secret?.name || null };
-    $("sheetTitle").textContent = mode === "add" ? "Add secret" : "Rotate secret";
+    if (mode !== "config" && (!state.data?.initialized || state.data.vaultError)) { toast("Create or unlock the vault first."); return; }
+    if (state.busy) return;
+    state.opener = document.activeElement;
+    state.sheet = { mode, name: secret?.name || null, scope: secret?.scope || null };
+    const sheet = state.sheet;
+    const bulk = mode === "import";
+    const config = mode === "config";
+    const group = mode === "group";
+    $("bulkFields").hidden = !bulk;
+    $("configFields").hidden = !config;
+    $("modeSeg").parentElement.hidden = bulk || config || group;
+    $("sheetTitle").textContent = bulk ? "Import secrets" : config ? "Manual setup" : group ? "Move to group" : mode === "add" ? "Add secret" : "Replace stored value";
     $("sheetSub").textContent = mode === "add"
-      ? "Stored in the vault. Agents use it without seeing it."
-      : "Every reference keeps working — the value is replaced in place.";
+      ? "Stored once in the vault. Agents receive it at runtime — never in their context."
+      : bulk ? "Select a set of credentials to make available everywhere."
+      : config ? "Paste a snippet into any MCP client. Detected harnesses can also be wired from Configure all."
+      : group ? "Choose a group or type a new one. Leave empty to ungroup."
+      : "This replaces the local value. Create and revoke keys with your provider separately.";
     $("nameRow").hidden = mode !== "add";
-    $("rotateRow").hidden = mode !== "rotate";
+    $("rotateRow").hidden = mode !== "rotate" && !group;
     $("rotateName").textContent = secret?.name || "";
-    $("sheetOptions").hidden = mode !== "add";
+    $("groupWrap").hidden = !group;
+    $("fGroup").value = secret?.service || "";
+    if (group) {
+      const dl = $("groupOptions");
+      dl.textContent = "";
+      const names = Array.from(new Set((state.data?.secrets || []).map((s) => s.service).filter(Boolean))).sort();
+      for (const svc of names) dl.append(el("option", { value: svc }));
+    }
+    $("scopeRow").hidden = mode !== "add";
+    $("kindRow").hidden = mode !== "add";
     $("fName").value = "";
     $("fValue").value = "";
-    $("fGenerate").value = "";
+    $("fValue").type = "password";
+    $("revealValue").setAttribute("aria-label", "Show value");
+    $("revealValue").setAttribute("aria-pressed", "false");
+    renderNameMeta();
+    $("fGenerateProfile").value = "hex";
+    $("fGenerateLength").value = "32";
     $("formError").hidden = true;
-    $("saveBtn").textContent = mode === "add" ? "Store secret" : "Rotate";
-    $("saveBtn").disabled = false;
+    $("saveBtn").textContent = bulk ? "Store selected" : group ? "Save" : mode === "add" ? "Store secret" : "Replace value";
+    $("saveBtn").disabled = bulk;
+    $("saveBtn").hidden = config;
+    $("cancelBtn").textContent = config ? "Close" : "Cancel";
     setFormMode("value");
+    setKind("secret");
+    if (bulk || config || group) $("valueWrap").hidden = true;
     setScope("global");
+    $("bulkData").value = "";
+    $("bulkFile").value = "";
+    $("importNames").textContent = "";
+    $("discardBtn").hidden = true;
+    document.querySelector(".app").inert = true;
 
+    $("secretForm").scrollTop = 0;
     $("scrim").hidden = false;
     $("sheet").hidden = false;
     requestAnimationFrame(() => {
       $("scrim").classList.add("open");
       $("sheet").classList.add("open");
     });
-    setTimeout(() => (mode === "add" ? $("fName") : $("fValue")).focus(), 60);
+    if (config) loadConfigSnippets();
+    setTimeout(() => {
+      if (state.sheet !== sheet) return;
+      if (config) $("sheetClose").focus();
+      else if (group) $("fGroup").focus();
+      else (bulk ? $("bulkData") : mode === "add" ? $("fName") : $("fValue")).focus();
+    }, 60);
   }
 
-  function closeSheet() {
+  function closeSheet(force = false) {
+    if (state.busy) return;
+    if (!force && ($("fValue").value || $("fName").value || $("bulkData").value)) {
+      $("formError").textContent = "You have unsaved changes. Save them or choose Discard changes.";
+      $("formError").hidden = false;
+      $("discardBtn").hidden = false;
+      $("discardBtn").focus();
+      return;
+    }
     state.sheet = null;
+    $("fValue").value = $("fName").value = $("bulkData").value = $("bulkFile").value = $("fGroup").value = "";
+    $("importNames").textContent = "";
+    document.querySelector(".app").inert = false;
+    state.opener?.focus();
     $("scrim").classList.remove("open");
     $("sheet").classList.remove("open");
     setTimeout(() => {
-      $("scrim").hidden = true;
-      $("sheet").hidden = true;
+      if (!state.sheet) { $("scrim").hidden = true; $("sheet").hidden = true; }
     }, 200);
   }
 
@@ -973,11 +1315,52 @@
     const error = $("formError");
     error.hidden = true;
 
+    if (state.sheet.mode === "import") {
+      const names = Array.from($("importNames").querySelectorAll("input:checked")).map(input => input.value);
+      if (!names.length) { error.textContent = "Preview the names and select at least one secret."; error.hidden = false; return; }
+      state.busy = true; $("saveBtn").disabled = true; $("saveBtn").textContent = "Storing…";
+      try {
+        await api("/api/import", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({data:$("bulkData").value,names})});
+        state.busy = false; closeSheet(true); toast(names.length + (names.length === 1 ? " secret stored" : " secrets stored")); await loadState();
+      } catch (err) { state.busy = false; error.textContent = err.message; error.hidden = false; $("saveBtn").disabled = false; $("saveBtn").textContent = "Store selected"; }
+      return;
+    }
+
+    if (state.sheet.mode === "group") {
+      const service = $("fGroup").value.trim();
+      if (service && !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,31}$/.test(service)) {
+        error.textContent = "Group names use letters, digits, dot, dash, underscore (max 32).";
+        error.hidden = false;
+        $("fGroup").focus();
+        return;
+      }
+      state.busy = true; $("saveBtn").disabled = true; $("saveBtn").textContent = "Saving…";
+      try {
+        await api("/api/group", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({name: state.sheet.name, scope: state.sheet.scope, service})});
+        state.busy = false; closeSheet(true);
+        toast(service ? "Moved to " + service : "Ungrouped");
+        await loadState();
+      } catch (err) { state.busy = false; error.textContent = err.message; error.hidden = false; $("saveBtn").disabled = false; $("saveBtn").textContent = "Save"; }
+      return;
+    }
+
     const value = state.formMode === "value" ? $("fValue").value : "";
-    const generate = state.formMode === "generate" ? $("fGenerate").value.trim() : "";
+    const generate = state.formMode === "generate"
+      ? $("fGenerateProfile").value + "/" + $("fGenerateLength").value.trim()
+      : "";
+    if (state.formMode === "generate") {
+      const n = Number($("fGenerateLength").value);
+      if (!Number.isInteger(n) || n < 8 || n > 256) {
+        error.textContent = "Length must be a whole number between 8 and 256.";
+        error.hidden = false;
+        $("fGenerateLength").focus();
+        return;
+      }
+    }
     if (!value && !generate) {
-      error.textContent = "Enter a value or a generate spec.";
+      error.textContent = "Enter a value or generate one.";
       error.hidden = false;
+      $("fValue").focus();
       return;
     }
 
@@ -987,15 +1370,19 @@
       if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
         error.textContent = "Use letters, digits and underscore, starting with a letter or underscore.";
         error.hidden = false;
+        $("fName").focus();
         return;
       }
       body.name = name;
       body.scope = state.scope;
+      body.sensitive = state.kind !== "config";
     } else {
       body.name = state.sheet.name;
     }
 
     const mode = state.sheet.mode;
+    const kind = state.kind;
+    state.busy = true;
     const btn = $("saveBtn");
     btn.disabled = true;
     btn.textContent = "Saving…";
@@ -1005,10 +1392,12 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      closeSheet();
-      toast(mode === "add" ? "Secret stored" : "Secret rotated");
+      state.busy = false;
+      closeSheet(true);
+      toast(mode === "add" ? (kind === "config" ? "Config stored" : "Secret stored") : "Secret rotated");
       await loadState();
     } catch (err) {
+      state.busy = false;
       error.textContent = err.message;
       error.hidden = false;
       btn.disabled = false;
@@ -1016,13 +1405,57 @@
     }
   });
 
+  $("bulkFile").addEventListener("change", async event => {
+    const file = event.target.files[0];
+    if (!file) return;
+    if (file.size > 500000) { toast("Choose a file smaller than 500 KB."); return; }
+    $("bulkData").value = await file.text();
+    $("importNames").textContent = "";
+  });
+  $("bulkData").addEventListener("input", () => { $("importNames").textContent = ""; });
+  $("bulkData").addEventListener("input", () => {
+    $("importNames").textContent = "";
+    $("saveBtn").disabled = true;
+  });
+  $("bulkFile").addEventListener("change", () => {
+    $("importNames").textContent = "";
+    $("saveBtn").disabled = true;
+  });
+  $("previewImport").addEventListener("click", async event => {
+    const btn = event.currentTarget; btn.disabled = true;
+    try {
+      const result = await api("/api/import", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({data:$("bulkData").value,preview:true})});
+      $("importNames").textContent = "";
+      for (const name of result.names) {
+        const input = el("input",{type:"checkbox",value:name}); input.checked = true;
+        $("importNames").append(el("label",{},[input,document.createTextNode(name)]));
+      }
+      if (!result.names.length) toast("No non-empty plaintext entries found.");
+      $("saveBtn").disabled = result.names.length === 0;
+    } catch (err) { $("formError").textContent = err.message; $("formError").hidden = false; }
+    finally { btn.disabled = false; }
+  });
+  $("initializeBtn").addEventListener("click", async event => {
+    const btn = event.currentTarget; btn.disabled = true; btn.textContent = "Creating vault…";
+    try { await api("/api/initialize",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"}); await loadState(); toast("Vault ready. Add your first credentials."); }
+    catch (err) { $("loadError").textContent = err.message; $("loadError").hidden = false; }
+    finally { btn.disabled = false; btn.textContent = "Create vault"; }
+  });
+
   document.querySelectorAll("#modeSeg .seg-btn").forEach((btn) => {
     btn.addEventListener("click", () => setFormMode(btn.dataset.mode));
   });
-  document.querySelectorAll("#scopeSeg .seg-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      if (!btn.disabled) setScope(btn.dataset.scope);
-    });
+  $("fScope").addEventListener("change", () => setScope($("fScope").value));
+  $("fName").addEventListener("input", renderNameMeta);
+  $("revealValue").addEventListener("click", () => {
+    const input = $("fValue");
+    const show = input.type === "password";
+    input.type = show ? "text" : "password";
+    $("revealValue").setAttribute("aria-label", show ? "Hide value" : "Show value");
+    $("revealValue").setAttribute("aria-pressed", String(show));
+  });
+  document.querySelectorAll("#kindSeg .seg-btn").forEach((btn) => {
+    btn.addEventListener("click", () => setKind(btn.dataset.kind));
   });
 
   document.querySelectorAll(".nav-item").forEach((btn) => {
@@ -1030,7 +1463,14 @@
   });
 
   $("addBtn").addEventListener("click", () => openSheet("add"));
+  $("importBtn").addEventListener("click", () => openSheet("import"));
   $("emptyAdd").addEventListener("click", () => openSheet("add"));
+  $("emptyClear").addEventListener("click", () => {
+    state.filter = "";
+    $("filter").value = "";
+    renderSecrets();
+    $("filter").focus();
+  });
   $("refresh").addEventListener("click", () => {
     loadState();
     if (state.view === "agents") loadAgents(true);
@@ -1039,14 +1479,15 @@
     state.filter = event.target.value;
     renderSecrets();
   });
-  $("scrim").addEventListener("click", closeSheet);
-  $("sheetClose").addEventListener("click", closeSheet);
-  $("cancelBtn").addEventListener("click", closeSheet);
+  $("scrim").addEventListener("click", () => closeSheet());
+  $("sheetClose").addEventListener("click", () => closeSheet());
+  $("cancelBtn").addEventListener("click", () => closeSheet());
+  $("discardBtn").addEventListener("click", () => closeSheet(true));
 
   $("sheet").addEventListener("keydown", (event) => {
     if (event.key !== "Tab") return;
     const focusable = Array.from(
-      $("sheet").querySelectorAll("button, input, select")
+      $("sheet").querySelectorAll("button, input, select, textarea")
     ).filter((node) => !node.disabled && node.offsetParent !== null);
     if (!focusable.length) return;
     const first = focusable[0];
@@ -1077,7 +1518,11 @@
     }
   });
 
-  setView("secrets");
+  window.addEventListener("beforeunload", event => {
+    if (state.sheet && ($("fValue").value || $("bulkData").value)) { event.preventDefault(); event.returnValue = ""; }
+  });
+  window.addEventListener("hashchange", () => setView(location.hash.slice(1)));
+  setView(location.hash.slice(1));
   loadState();
 })();
 </script>

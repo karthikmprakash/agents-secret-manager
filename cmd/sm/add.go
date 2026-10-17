@@ -11,18 +11,19 @@ import (
 	"golang.org/x/term"
 
 	"github.com/karthikmprakash/agents-secret-manager/internal/generate"
-	"github.com/karthikmprakash/agents-secret-manager/internal/keys"
 	"github.com/karthikmprakash/agents-secret-manager/internal/manifest"
-	"github.com/karthikmprakash/agents-secret-manager/internal/store/vaultfile"
+	"github.com/karthikmprakash/agents-secret-manager/internal/secrets"
 )
 
 func cmdAdd(args []string) error {
 	fs := flag.NewFlagSet("sm add", flag.ContinueOnError)
-	refFlag := fs.String("ref", "", "store reference (default vault://<name lowercased>)")
+	refFlag := fs.String("ref", "", "store reference (default: isolated global/project namespace)")
 	transportFlag := fs.String("transport", manifest.TransportEnv, "delivery transport: env, file, proxy or generated")
 	generateFlag := fs.String("generate", "", "generate the value instead of prompting: [profile/]length, e.g. postgres/32")
 	scopeFlag := fs.String("scope", "", "comma-separated local scopes (e.g. cmd:gh,cmd:git)")
 	globalFlag := fs.Bool("global", false, "declare in the global manifest (~/.config/sm/manifest.toml) instead of the project")
+	serviceFlag := fs.String("service", "", "group this entry under a service name, e.g. stripe")
+	sensitiveFlag := fs.Bool("sensitive", true, "false marks plain config (base URLs, model names): stored and injected, not masked or reported as leaks")
 	// Accept the name before or after flags: stdlib flag stops parsing at the
 	// first positional argument, so pull a leading name out first.
 	var name string
@@ -36,30 +37,24 @@ func cmdAdd(args []string) error {
 		}
 		return err
 	}
-	const usage = "usage: sm add NAME [--ref vault://path] [--transport env] [--generate postgres/32] [--scope cmd:gh]"
+	const usage = "usage: sm add NAME [--ref vault://path] [--transport env] [--generate postgres/32] [--scope cmd:gh] [--service stripe] [--sensitive=false]"
 	switch {
 	case name == "" && fs.NArg() == 1:
 		name = fs.Arg(0)
 	case name == "" || fs.NArg() > 0:
 		return fmt.Errorf("%s", usage)
 	}
-	if strings.ContainsAny(name, " \t\n") {
-		return fmt.Errorf("secret name must not contain whitespace")
+	if !manifest.ValidName(name) {
+		return fmt.Errorf("invalid secret name; use letters, digits and underscore")
 	}
 
 	cwd, err := os.Getwd()
 	if err != nil {
 		return err
 	}
-	loaded, err := manifest.LoadLayers(cwd)
+	loaded, err := manifest.LoadOptional(cwd)
 	if err != nil {
-		if !*globalFlag {
-			return err
-		}
-		loaded = &manifest.Loaded{}
-	}
-	if _, exists := loaded.Merged().Secrets[name]; exists {
-		return fmt.Errorf("secret %s is already declared — use `sm rotate %s`", name, name)
+		return err
 	}
 
 	var targetPath string
@@ -78,7 +73,7 @@ func cmdAdd(args []string) error {
 
 	ref := *refFlag
 	if ref == "" {
-		ref = "vault://" + strings.ToLower(name)
+		ref = manifest.DefaultRef(targetPath, name)
 	}
 	r, err := manifest.ParseRef(ref)
 	if err != nil {
@@ -92,6 +87,14 @@ func cmdAdd(args []string) error {
 		Ref:       ref,
 		Transport: *transportFlag,
 		Generate:  *generateFlag,
+		Service:   strings.TrimSpace(*serviceFlag),
+	}
+	if secret.Service != "" && !manifest.ValidService(secret.Service) {
+		return fmt.Errorf("invalid service name %q (letters, digits, dot, dash, underscore; max 32)", secret.Service)
+	}
+	if !*sensitiveFlag {
+		no := false
+		secret.Sensitive = &no
 	}
 	for _, s := range strings.Split(*scopeFlag, ",") {
 		if s = strings.TrimSpace(s); s != "" {
@@ -115,27 +118,18 @@ func cmdAdd(args []string) error {
 		return fmt.Errorf("empty value; nothing stored")
 	}
 
-	identity, err := keys.Get()
-	if err != nil {
+	if err := secrets.AddBatch(targetPath, []secrets.Input{{Name: name, Value: value, Secret: secret}}, false); err != nil {
 		return err
-	}
-	vaultPath, err := keys.VaultPath()
-	if err != nil {
-		return err
-	}
-	v, err := vaultfile.Open(vaultPath, identity)
-	if err != nil {
-		return err
-	}
-	if err := v.Set(r.Path, value); err != nil {
-		return fmt.Errorf("write vault: %w", err)
 	}
 
-	if err := manifest.AppendSecret(targetPath, name, secret); err != nil {
-		return fmt.Errorf("value stored at %s but manifest update failed: %w", ref, err)
+	extra := ""
+	if secret.Service != "" {
+		extra = ", service " + secret.Service
 	}
-
-	fmt.Printf("stored %s → %s (transport %s)\n", name, ref, secret.Transport)
+	if !secret.IsSensitive() {
+		extra += ", config (not sensitive)"
+	}
+	fmt.Printf("stored %s → %s (transport %s%s)\n", name, ref, secret.Transport, extra)
 	if *globalFlag {
 		fmt.Println("updated global manifest:", targetPath)
 	} else {

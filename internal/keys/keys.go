@@ -51,6 +51,8 @@ func Create() (string, error) {
 	}
 	if _, err := keyring.Get(service, account); err == nil {
 		return "", fmt.Errorf("identity already exists in Keychain")
+	} else if !errors.Is(err, keyring.ErrNotFound) {
+		return "", fmt.Errorf("cannot check existing Keychain identity: %w", err)
 	}
 	id, err := age.GenerateX25519Identity()
 	if err != nil {

@@ -52,6 +52,9 @@ func Append(dir string, e Entry) error {
 		return err
 	}
 	defer f.Close()
+	if err := f.Chmod(0o600); err != nil {
+		return err
+	}
 
 	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
 		return err
@@ -63,6 +66,12 @@ func Append(dir string, e Entry) error {
 		return err
 	}
 	lines := splitLines(data)
+	if len(data) > 0 && data[len(data)-1] != '\n' {
+		return fmt.Errorf("audit log has an incomplete last entry; repair it before continuing")
+	}
+	if _, err := verifyLines(lines); err != nil {
+		return err
+	}
 	if len(lines) > 0 {
 		e.Prev = Hash(lines[len(lines)-1])
 	}
@@ -71,8 +80,10 @@ func Append(dir string, e Entry) error {
 	if err != nil {
 		return err
 	}
-	_, err = f.Write(append(line, '\n'))
-	return err
+	if _, err = f.Write(append(line, '\n')); err != nil {
+		return err
+	}
+	return f.Sync()
 }
 
 // Read returns all entries.
@@ -105,15 +116,21 @@ func Verify(dir string) (int, error) {
 		}
 		return 0, err
 	}
-	lines := splitLines(data)
+	if len(data) > 0 && data[len(data)-1] != '\n' {
+		return 0, fmt.Errorf("audit log has an incomplete last entry")
+	}
+	return verifyLines(splitLines(data))
+}
+
+func verifyLines(lines []string) (int, error) {
 	prev := ""
 	for i, line := range lines {
 		var e Entry
 		if err := json.Unmarshal([]byte(line), &e); err != nil {
-			return i, fmt.Errorf("line %d: invalid JSON: %w", i+1, err)
+			return i, fmt.Errorf("line %d: invalid JSON", i+1)
 		}
 		if e.Prev != prev {
-			return i, fmt.Errorf("line %d: chain broken (prev %q, want %q)", i+1, e.Prev, prev)
+			return i, fmt.Errorf("line %d: chain broken", i+1)
 		}
 		prev = Hash(line)
 	}

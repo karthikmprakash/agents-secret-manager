@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/http/cookiejar"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -87,6 +88,33 @@ func TestAuthRequired(t *testing.T) {
 
 func sURL(host, path string) string { return "http://" + host + path }
 
+func TestMcpConfigSnippets(t *testing.T) {
+	_, host, token := newTestServer(t)
+	code, body := do(t, "GET", sURL(host, "/api/mcp-config"), token, "")
+	if code != 200 {
+		t.Fatalf("code = %d: %s", code, body)
+	}
+	var res struct {
+		Snippets []struct {
+			Agents []string `json:"agents"`
+			Lang   string   `json:"lang"`
+			Body   string   `json:"body"`
+		} `json:"snippets"`
+	}
+	if err := json.Unmarshal(body, &res); err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, s := range res.Snippets {
+		if s.Lang == "json" && strings.Contains(s.Body, "mcpServers") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("no mcpServers JSON snippet in %d snippets", len(res.Snippets))
+	}
+}
+
 func TestAddSecretAndState(t *testing.T) {
 	_, host, token := newTestServer(t)
 
@@ -125,7 +153,7 @@ func TestAddSecretAndState(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if val, ok, _ := v.Get("api_key"); !ok || val != "sekret-xyz" {
+	if val, ok, _ := v.Get("global/API_KEY"); !ok || val != "sekret-xyz" {
 		t.Fatalf("vault value = %q, %v", val, ok)
 	}
 }
@@ -156,7 +184,7 @@ func TestRotate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if val, _, _ := v.Get("rot"); val != "new" {
+	if val, _, _ := v.Get("global/ROT"); val != "new" {
 		t.Errorf("value = %q", val)
 	}
 }
@@ -175,5 +203,148 @@ func TestAgentsEndpoint(t *testing.T) {
 	}
 	if res.Agents == nil {
 		t.Fatal("agents field missing from response")
+	}
+}
+
+func TestInitializeAndCookieRefresh(t *testing.T) {
+	s, host, token := newTestServer(t)
+	code, body := do(t, "GET", sURL(host, "/api/state"), token, "")
+	if code != 200 {
+		t.Fatal(string(body))
+	}
+	var state stateResponse
+	_ = json.Unmarshal(body, &state)
+	if state.Initialized {
+		t.Fatal("new vault unexpectedly initialized")
+	}
+	if code, body := do(t, "POST", sURL(host, "/api/initialize"), token, "{}"); code != 200 {
+		t.Fatal(string(body))
+	}
+	jar, _ := cookiejar.New(nil)
+	client := &http.Client{Jar: jar}
+	res, err := client.Get(s.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	res, err = client.Get(sURL(host, "/api/state"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != 200 {
+		t.Fatal("refresh lost authentication")
+	}
+	if err := json.NewDecoder(res.Body).Decode(&state); err != nil {
+		t.Fatal(err)
+	}
+	if !state.Initialized {
+		t.Fatal("vault not ready")
+	}
+	u, _ := url.Parse(s.URL)
+	for _, c := range jar.Cookies(u) {
+		if c.Value == "" {
+			t.Fatal("session missing")
+		}
+	}
+}
+
+func TestMutationGuards(t *testing.T) {
+	_, host, token := newTestServer(t)
+	for _, tc := range []struct {
+		method, path, body string
+		want               int
+	}{
+		{"GET", "/api/add", "", 404},
+		{"POST", "/api/setup", "{invalid", 400},
+		{"POST", "/api/add", "{\"name\":\"X\",\"value\":\"never-echo-me\",\"unknown\":true}", 400},
+		{"POST", "/api/setup", "{} {}", 400},
+		{"POST", "/api/setup", "{\"only\":\"not-installed\"}", 404},
+	} {
+		code, body := do(t, tc.method, sURL(host, tc.path), token, tc.body)
+		if code != tc.want {
+			t.Errorf("%s %s=%d want %d: %s", tc.method, tc.path, code, tc.want, body)
+		}
+		if strings.Contains(string(body), "never-echo-me") {
+			t.Fatal("error leaked input")
+		}
+	}
+	for _, header := range []struct{ key, value string }{{"Origin", "https://evil.example"}, {"Host", "evil.example"}} {
+		req, _ := http.NewRequest("GET", sURL(host, "/api/state"), nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		if header.key == "Host" {
+			req.Host = header.value
+		} else {
+			req.Header.Set(header.key, header.value)
+		}
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res.Body.Close()
+		if res.StatusCode != 403 {
+			t.Fatal("cross-origin/host request allowed")
+		}
+	}
+	code, _ := do(t, "POST", sURL(host, "/api/setup?token="+token), "", "{}")
+	if code != 401 {
+		t.Fatal("query token authorized mutation")
+	}
+}
+
+func TestBulkImportPreviewAndConflict(t *testing.T) {
+	_, host, token := newTestServer(t)
+	code, body := do(t, "POST", sURL(host, "/api/import"), token, `{"data":"A=keep-secret\nB=other-secret\n","preview":true}`)
+	if code != 200 || strings.Contains(string(body), "keep-secret") {
+		t.Fatal("preview failed or leaked values")
+	}
+	code, body = do(t, "POST", sURL(host, "/api/import"), token, `{"data":"A=keep-secret\nB=other-secret\n","names":["A","B"]}`)
+	if code != 200 {
+		t.Fatal(string(body))
+	}
+	code, body = do(t, "POST", sURL(host, "/api/import"), token, `{"data":"A=different\nC=third\n","names":["A","C"]}`)
+	if code != 409 {
+		t.Fatal("conflicting import not rejected")
+	}
+	code, body = do(t, "GET", sURL(host, "/api/state"), token, "")
+	if strings.Contains(string(body), "keep-secret") || strings.Contains(string(body), "other-secret") {
+		t.Fatal("state leaked values")
+	}
+	var state stateResponse
+	_ = json.Unmarshal(body, &state)
+	if len(state.Secrets) != 2 {
+		t.Fatal("partial conflicting import")
+	}
+}
+
+func TestMalformedManifestIsNotAnEmptyState(t *testing.T) {
+	_, host, token := newTestServer(t)
+	if err := os.WriteFile(".agentsecrets.toml", []byte("[broken"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if code, _ := do(t, "GET", sURL(host, "/api/state"), token, ""); code != 500 {
+		t.Fatal("malformed manifest silently hidden")
+	}
+}
+
+func TestDoctorDoesNotInvokeAnotherCLIOrLeakContext(t *testing.T) {
+	_, host, token := newTestServer(t)
+	t.Setenv("HOME", t.TempDir())
+	code, body := do(t, "POST", sURL(host, "/api/add"), token, `{"name":"TOKEN","value":"known-secret"}`)
+	if code != 200 {
+		t.Fatal(string(body))
+	}
+	if err := os.WriteFile(".env", []byte("TOKEN=known-secret\nUNREGISTERED=must-not-echo\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	code, body = do(t, "POST", sURL(host, "/api/doctor"), token, `{"history":false}`)
+	if code != 200 {
+		t.Fatal(string(body))
+	}
+	if strings.Contains(string(body), "known-secret") || strings.Contains(string(body), "must-not-echo") {
+		t.Fatal("doctor leaked raw content")
+	}
+	if !strings.Contains(string(body), `"exit":1`) {
+		t.Fatal("doctor did not report finding")
 	}
 }

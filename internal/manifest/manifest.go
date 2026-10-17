@@ -3,15 +3,20 @@
 package manifest
 
 import (
+	"bytes"
+	"crypto/sha256"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/BurntSushi/toml"
 
 	"github.com/karthikmprakash/agents-secret-manager/internal/config"
+	"github.com/karthikmprakash/agents-secret-manager/internal/safeio"
 )
 
 // Transports frozen in the v0.1 design.
@@ -36,7 +41,15 @@ type Secret struct {
 	Scope     []string `toml:"scope,omitempty"`
 	Hosts     []string `toml:"hosts,omitempty"`
 	Generate  string   `toml:"generate,omitempty"`
+	// Service groups related entries (e.g. "stripe" around BASE_URL + API_KEY).
+	Service string `toml:"service,omitempty"`
+	// Sensitive false marks plain config (base URLs, model names): still stored,
+	// injected and never displayed, but not masked and not reported as a leak.
+	Sensitive *bool `toml:"sensitive,omitempty"`
 }
+
+// IsSensitive defaults to true; only an explicit false opts out.
+func (s Secret) IsSensitive() bool { return s.Sensitive == nil || *s.Sensitive }
 
 // Project is the [project] table.
 type Project struct {
@@ -66,14 +79,21 @@ func ParseRef(s string) (Ref, error) {
 	if path == "" {
 		return Ref{}, fmt.Errorf("invalid ref %q: empty path", s)
 	}
+	if strings.ContainsAny(path, "\x00\r\n\t?# ") {
+		return Ref{}, fmt.Errorf("invalid store reference path")
+	}
 	return Ref{Scheme: scheme, Path: path}, nil
 }
 
 // Load reads and validates one manifest file.
 func Load(path string) (*Manifest, error) {
 	var m Manifest
-	if _, err := toml.DecodeFile(path, &m); err != nil {
+	md, err := toml.DecodeFile(path, &m)
+	if err != nil {
 		return nil, fmt.Errorf("parse %s: %w", path, err)
+	}
+	if len(md.Undecoded()) > 0 {
+		return nil, fmt.Errorf("%s: unknown manifest fields; values must only be stored in the vault", path)
 	}
 	if m.Secrets == nil {
 		m.Secrets = map[string]Secret{}
@@ -86,7 +106,19 @@ func Load(path string) (*Manifest, error) {
 
 // Validate checks transports and refs. The empty transport defaults to "env".
 func (m *Manifest) Validate() error {
+	if ttl := m.Project.DefaultTTL; ttl != "" {
+		d, err := time.ParseDuration(ttl)
+		if err != nil || d <= 0 {
+			return fmt.Errorf("default_ttl must be a positive duration (advisory, not enforced)")
+		}
+	}
 	for name, s := range m.Secrets {
+		if !ValidName(name) {
+			return fmt.Errorf("invalid secret name; use letters, digits and underscore")
+		}
+		if s.Service != "" && !ValidService(s.Service) {
+			return fmt.Errorf("secret %s: invalid service name %q (letters, digits, dot, dash, underscore; max 32)", name, s.Service)
+		}
 		if s.Transport == "" {
 			s.Transport = TransportEnv
 			m.Secrets[name] = s
@@ -124,7 +156,15 @@ func EnsureGlobal() (path string, created bool, err error) {
 	if err != nil {
 		return "", false, err
 	}
+	unlock, err := safeio.Lock(gp + ".lock")
+	if err != nil {
+		return "", false, err
+	}
+	defer unlock()
 	if _, statErr := os.Stat(gp); statErr == nil {
+		if _, err := Load(gp); err != nil {
+			return "", false, err
+		}
 		return gp, false, nil
 	} else if !os.IsNotExist(statErr) {
 		return "", false, statErr
@@ -133,7 +173,7 @@ func EnsureGlobal() (path string, created bool, err error) {
 		return "", false, err
 	}
 	header := "# global manifest — shared across projects; no values, ever\n[secrets]\n"
-	if err := os.WriteFile(gp, []byte(header), 0o644); err != nil {
+	if err := safeio.Write(gp, []byte(header), 0o600); err != nil {
 		return "", false, err
 	}
 	return gp, true, nil
@@ -169,15 +209,33 @@ type Loaded struct {
 // LoadLayers loads the global layer (if present) and the project layer found
 // by walking up from startDir. It errors when neither exists.
 func LoadLayers(startDir string) (*Loaded, error) {
+	l, err := LoadOptional(startDir)
+	if err != nil {
+		return nil, err
+	}
+	if l.Global == nil && l.Project == nil {
+		return nil, fmt.Errorf("no secret manifest found; run `sm onboard` or `sm add --global NAME`")
+	}
+	return l, nil
+}
+
+// LoadOptional accepts missing manifests, never malformed or unreadable ones.
+func LoadOptional(startDir string) (*Loaded, error) {
 	l := &Loaded{}
 
-	if gp, err := GlobalPath(); err == nil {
+	gp, err := GlobalPath()
+	if err != nil {
+		return nil, err
+	}
+	{
 		if _, statErr := os.Stat(gp); statErr == nil {
 			m, err := Load(gp)
 			if err != nil {
 				return nil, err
 			}
 			l.Global, l.GlobalPath = m, gp
+		} else if !os.IsNotExist(statErr) {
+			return nil, statErr
 		}
 	}
 
@@ -189,10 +247,32 @@ func LoadLayers(startDir string) (*Loaded, error) {
 		l.Project, l.ProjectPath = m, pp
 	}
 
-	if l.Global == nil && l.Project == nil {
-		return nil, fmt.Errorf("no .agentsecrets.toml found in %s or any parent (run `sm init` to create one)", startDir)
-	}
 	return l, nil
+}
+
+var envName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+func ValidName(name string) bool {
+	return envName.MatchString(name) && name != "SM_IDENTITY" && name != "SM_CONFIG_DIR" && name != "SM_ALLOW_PLAINTEXT"
+}
+
+var serviceName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,31}$`)
+
+// ValidService accepts short labels used to group related secrets.
+func ValidService(name string) bool { return serviceName.MatchString(name) }
+
+// DefaultRef separates projects and preserves case. Existing refs stay valid.
+func DefaultRef(target, name string) string {
+	global, _ := GlobalPath()
+	if target == global {
+		return "vault://global/" + name
+	}
+	abs, _ := filepath.Abs(target)
+	if real, err := filepath.EvalSymlinks(abs); err == nil {
+		abs = real
+	}
+	id := sha256.Sum256([]byte(abs))
+	return fmt.Sprintf("vault://projects/%x/%s", id[:12], name)
 }
 
 // Merged flattens the layers: global first, project overrides per secret and
@@ -221,32 +301,152 @@ func (l *Loaded) Merged() *Manifest {
 
 var bareKey = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
+// ServiceMembers returns the declared secret names belonging to a service,
+// sorted. The comparison is exact.
+func (m *Manifest) ServiceMembers(service string) []string {
+	var out []string
+	for name, s := range m.Secrets {
+		if s.Service == service {
+			out = append(out, name)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// Services lists the distinct service names, sorted.
+func (m *Manifest) Services() []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, s := range m.Secrets {
+		if s.Service != "" && !seen[s.Service] {
+			seen[s.Service] = true
+			out = append(out, s.Service)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// SetService updates one entry's service field in place, preserving the rest
+// of the file. An empty service removes the field (ungrouped).
+func SetService(path, name, service string) error {
+	unlock, err := safeio.Lock(path + ".lock")
+	if err != nil {
+		return err
+	}
+	defer unlock()
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	text := string(data)
+	header := "[secrets." + name + "]"
+	lines := strings.Split(text, "\n")
+	start := -1
+	for i, line := range lines {
+		if strings.TrimSpace(line) == header {
+			start = i
+			break
+		}
+	}
+	if start == -1 {
+		return fmt.Errorf("%s: no %s entry", path, header)
+	}
+	end := len(lines)
+	for i := start + 1; i < len(lines); i++ {
+		if strings.HasPrefix(strings.TrimSpace(lines[i]), "[") {
+			end = i
+			break
+		}
+	}
+
+	var kept []string
+	for _, line := range lines[start+1 : end] {
+		if key, _, ok := strings.Cut(strings.TrimSpace(line), "="); ok && strings.TrimSpace(key) == "service" {
+			continue
+		}
+		kept = append(kept, line)
+	}
+	last := len(kept) - 1
+	for last >= 0 && strings.TrimSpace(kept[last]) == "" {
+		last--
+	}
+	out := append([]string{}, lines[:start+1]...)
+	out = append(out, kept[:last+1]...)
+	if service != "" {
+		out = append(out, fmt.Sprintf("service = %q", service))
+	}
+	out = append(out, kept[last+1:]...)
+	out = append(out, lines[end:]...)
+	updated := strings.Join(out, "\n")
+
+	var check Manifest
+	if _, err := toml.Decode(updated, &check); err != nil {
+		return fmt.Errorf("%s: change would produce invalid TOML; manifest unchanged", path)
+	}
+	if err := check.Validate(); err != nil {
+		return err
+	}
+	if check.Secrets[name].Service != service {
+		return fmt.Errorf("%s: grouping change did not apply cleanly", path)
+	}
+	if bytes.Equal(data, []byte(updated)) {
+		return nil
+	}
+	return safeio.Write(path, []byte(updated), 0o600)
+}
+
 // AppendSecret appends a [secrets.NAME] block to the manifest file, preserving
 // existing formatting and comments. The result is re-parsed before writing so
 // a bad append can never leave a broken manifest behind. It does not check for
 // duplicate names.
 func AppendSecret(path, name string, s Secret) error {
-	if s.Transport == "" {
-		s.Transport = TransportEnv
-	}
+	return AppendSecrets(path, map[string]Secret{name: s})
+}
 
-	key := name
-	if !bareKey.MatchString(name) {
-		key = fmt.Sprintf("%q", name)
+func AppendSecrets(path string, entries map[string]Secret) error {
+	unlock, err := safeio.Lock(path + ".lock")
+	if err != nil {
+		return err
 	}
-
+	defer unlock()
+	var names []string
+	for name := range entries {
+		names = append(names, name)
+	}
+	sort.Strings(names)
 	var b strings.Builder
-	fmt.Fprintf(&b, "\n[secrets.%s]\n", key)
-	fmt.Fprintf(&b, "ref = %q\n", s.Ref)
-	fmt.Fprintf(&b, "transport = %q\n", s.Transport)
-	if len(s.Scope) > 0 {
-		fmt.Fprintf(&b, "scope = [%s]\n", quoteList(s.Scope))
-	}
-	if len(s.Hosts) > 0 {
-		fmt.Fprintf(&b, "hosts = [%s]\n", quoteList(s.Hosts))
-	}
-	if s.Generate != "" {
-		fmt.Fprintf(&b, "generate = %q\n", s.Generate)
+	for _, name := range names {
+		s := entries[name]
+		if s.Transport == "" {
+			s.Transport = TransportEnv
+		}
+
+		key := name
+		if !bareKey.MatchString(name) {
+			key = fmt.Sprintf("%q", name)
+		}
+
+		fmt.Fprintf(&b, "\n[secrets.%s]\n", key)
+		fmt.Fprintf(&b, "ref = %q\n", s.Ref)
+		fmt.Fprintf(&b, "transport = %q\n", s.Transport)
+		if len(s.Scope) > 0 {
+			fmt.Fprintf(&b, "scope = [%s]\n", quoteList(s.Scope))
+		}
+		if len(s.Hosts) > 0 {
+			fmt.Fprintf(&b, "hosts = [%s]\n", quoteList(s.Hosts))
+		}
+		if s.Generate != "" {
+			fmt.Fprintf(&b, "generate = %q\n", s.Generate)
+		}
+		if s.Service != "" {
+			fmt.Fprintf(&b, "service = %q\n", s.Service)
+		}
+		if s.Sensitive != nil && !*s.Sensitive {
+			fmt.Fprintf(&b, "sensitive = false\n")
+		}
 	}
 
 	orig, err := os.ReadFile(path)
@@ -263,7 +463,10 @@ func AppendSecret(path, name string, s Secret) error {
 	if _, err := toml.Decode(updated, &check); err != nil {
 		return fmt.Errorf("appending would break the manifest: %w", err)
 	}
-	return os.WriteFile(path, []byte(updated), 0o644)
+	if err := check.Validate(); err != nil {
+		return err
+	}
+	return safeio.Write(path, []byte(updated), 0o600)
 }
 
 func quoteList(items []string) string {

@@ -132,7 +132,7 @@ func TestAppendSecret(t *testing.T) {
 	if err := AppendSecret(p, "GITHUB_TOKEN", Secret{Ref: "vault://dev/github/pat", Transport: "env", Scope: []string{"cmd:gh"}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := AppendSecret(p, "weird.name", Secret{Ref: "vault://dev/weird", Transport: "env"}); err != nil {
+	if err := AppendSecret(p, "OTHER_NAME", Secret{Ref: "vault://dev/weird", Transport: "env"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -147,7 +147,7 @@ func TestAppendSecret(t *testing.T) {
 	if len(s.Scope) != 1 || s.Scope[0] != "cmd:gh" {
 		t.Errorf("scope = %v", s.Scope)
 	}
-	if _, ok := m.Secrets["weird.name"]; !ok {
+	if _, ok := m.Secrets["OTHER_NAME"]; !ok {
 		t.Error("quoted key missing after append")
 	}
 }

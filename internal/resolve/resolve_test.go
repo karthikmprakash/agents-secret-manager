@@ -89,6 +89,34 @@ func TestManifestInjection(t *testing.T) {
 	}
 }
 
+func TestMasterIdentityNotInheritedAndOriginalStillRedacted(t *testing.T) {
+	dir := t.TempDir()
+	l := loadedWith(dir, map[string]manifest.Secret{"TOKEN": {Ref: "vault://t", Transport: manifest.TransportEnv}})
+	r, err := Build(l, fakeStore{"t": "original"}, dir, Options{Environ: []string{"TOKEN=override", "SM_IDENTITY=master-key"}, AllowPlaintext: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if envOf(r, "SM_IDENTITY") != "" {
+		t.Fatal("master identity leaked")
+	}
+	if r.Redactions["original"] == "" || r.Redactions["override"] == "" {
+		t.Fatal("override dropped original redaction")
+	}
+}
+
+func TestOnlySelectedSecretsAndAliasesReachChild(t *testing.T) {
+	dir := t.TempDir()
+	write(t, filepath.Join(dir, ".env"), "OTHER_ALIAS=sm://OTHER\n")
+	l := loadedWith(dir, map[string]manifest.Secret{"TOKEN": {Ref: "vault://t", Transport: manifest.TransportEnv}, "OTHER": {Ref: "vault://missing", Transport: manifest.TransportEnv}})
+	r, err := Build(l, fakeStore{"t": "token"}, dir, Options{Names: []string{"TOKEN"}, Environ: []string{"OTHER=inherited"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if envOf(r, "TOKEN") != "token" || envOf(r, "OTHER") != "" || envOf(r, "OTHER_ALIAS") != "" {
+		t.Fatal("selection leaked other credentials")
+	}
+}
+
 func TestDotenvPrecedence(t *testing.T) {
 	dir := t.TempDir()
 	write(t, filepath.Join(dir, ".env"), "K=base\nONLY_BASE=1\n")
@@ -169,13 +197,16 @@ func TestRefShadowIdenticalNoWarning(t *testing.T) {
 	}
 }
 
-func TestRefShadowDifferentWarns(t *testing.T) {
+func TestRefShadowDifferentRefuses(t *testing.T) {
 	dir := t.TempDir()
 	write(t, filepath.Join(dir, ".env"), "API_KEY=sm://K\n")
 	loaded := loadedWith(dir, map[string]manifest.Secret{
 		"K": {Ref: "vault://k", Transport: manifest.TransportEnv},
 	})
-	res, err := Build(loaded, fakeStore{"k": "fresh"}, dir, Options{Environ: []string{"API_KEY=stale"}})
+	if _, err := Build(loaded, fakeStore{"k": "fresh"}, dir, Options{Environ: []string{"API_KEY=stale"}}); err == nil {
+		t.Fatal("alias must refuse plaintext shadows")
+	}
+	res, err := Build(loaded, fakeStore{"k": "fresh"}, dir, Options{Environ: []string{"API_KEY=stale"}, AllowPlaintext: true})
 	if err != nil {
 		t.Fatal(err)
 	}

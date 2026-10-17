@@ -9,7 +9,7 @@ import (
 	"github.com/karthikmprakash/agents-secret-manager/internal/keys"
 )
 
-const version = "0.3.0-dev"
+var version = "0.3.0-dev"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -41,6 +41,10 @@ func main() {
 		err = cmdMcp(os.Args[2:])
 	case "setup":
 		err = cmdSetup(os.Args[2:])
+	case "config":
+		err = cmdConfig(os.Args[2:])
+	case "group":
+		err = cmdGroup(os.Args[2:])
 	case "ui":
 		err = cmdUi(os.Args[2:])
 	case "log":
@@ -88,12 +92,16 @@ usage:
   sm rotate NAME [flags]  replace a stored value; every ref keeps working
   sm mcp                  run the MCP server over stdio (agent clients start this)
   sm setup [--dry-run]    detect installed agents and wire the MCP server into them
+  sm config [--agent NAME]
+                          print MCP config snippets for manual wiring
+  sm group NAME --service S
+                          move a secret into a service group (or --ungroup)
   sm ui [--port N]        open the local desktop UI (loopback, token required)
   sm log [verify]         show the audit trail, or verify its hash chain
   sm version              print version
 
 flags for add:
-  --ref vault://path      store reference (default vault://<name lowercased>)
+  --ref vault://path      store reference (default: isolated global/project namespace)
   --transport T           env | file | proxy | generated (default env)
   --generate SPEC         generate the value instead of prompting: [profile/]length
   --scope LIST            comma-separated local scopes, e.g. cmd:gh,cmd:git
@@ -108,6 +116,7 @@ flags for import:
   (positional KEYs import just those entries)
 
 flags for exec:
+  --only NAMES            inject only these comma-separated secret names
   --profile NAME          load .env.<profile> between .env and .env.local
   --redact MODE           redact secret values in child output: auto | always | never
                           (auto: on when output is not a terminal)

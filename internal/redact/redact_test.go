@@ -2,8 +2,65 @@ package redact
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 )
+
+func TestStreamingMatchesOneShotAtEveryChunkSize(t *testing.T) {
+	labels := map[string]string{"abcdef": "LONG", "abc": "SHORT", "a": "A", "redacted": "WORD", "xy": "XY"}
+	text := "prefix abcdef, abc, a, xy, suffix abcdefxy"
+	want := String(text, labels)
+	for size := 1; size <= len(text); size++ {
+		var out bytes.Buffer
+		w := New(&out, labels)
+		for i := 0; i < len(text); i += size {
+			end := min(i+size, len(text))
+			if _, err := w.Write([]byte(text[i:end])); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := w.Flush(); err != nil {
+			t.Fatal(err)
+		}
+		if out.String() != want {
+			t.Fatalf("chunk=%d differs: %q", size, out.String())
+		}
+	}
+	if !strings.Contains(want, "[redacted:LONG]") {
+		t.Fatal("replacement markers were rescanned")
+	}
+}
+
+func TestOrdinaryOutputDoesNotWaitForExit(t *testing.T) {
+	var out bytes.Buffer
+	w := New(&out, map[string]string{"a-long-token": "TOKEN"})
+	_, _ = w.Write([]byte("ready\n"))
+	if out.String() != "ready\n" {
+		t.Fatal("ordinary progress output stalled")
+	}
+}
+
+func FuzzStreaming(f *testing.F) {
+	f.Add("prefix secret suffix", "secret", uint8(3))
+	f.Add("abcabcdef", "abcdef", uint8(1))
+	f.Fuzz(func(t *testing.T, text, secret string, chunk uint8) {
+		if len(text) > 20000 || len(secret) > 1000 {
+			return
+		}
+		labels := map[string]string{secret: "VALUE"}
+		want := String(text, labels)
+		var out bytes.Buffer
+		w := New(&out, labels)
+		size := int(chunk) + 1
+		for i := 0; i < len(text); i += size {
+			_, _ = w.Write([]byte(text[i:min(i+size, len(text))]))
+		}
+		_ = w.Flush()
+		if out.String() != want {
+			t.Fatal("stream result differs from one-shot")
+		}
+	})
+}
 
 func TestSimple(t *testing.T) {
 	var buf bytes.Buffer

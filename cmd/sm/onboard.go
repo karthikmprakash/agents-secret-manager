@@ -12,9 +12,8 @@ import (
 
 	"golang.org/x/term"
 
-	"github.com/karthikmprakash/agents-secret-manager/internal/keys"
 	"github.com/karthikmprakash/agents-secret-manager/internal/manifest"
-	"github.com/karthikmprakash/agents-secret-manager/internal/store/vaultfile"
+	"github.com/karthikmprakash/agents-secret-manager/internal/secrets"
 	"github.com/karthikmprakash/agents-secret-manager/internal/wireup"
 )
 
@@ -41,39 +40,10 @@ func cmdOnboard(args []string) error {
 	fmt.Println("sm onboard — one-time setup")
 	fmt.Println()
 
-	// 1. Identity + vault.
-	fmt.Println("vault")
-	switch {
-	case os.Getenv("SM_IDENTITY") != "":
-		fmt.Println("  ✓ identity from SM_IDENTITY")
-	case keys.Exists():
-		fmt.Println("  ✓ identity in Keychain")
-	default:
-		if _, err := keys.Create(); err != nil {
-			return err
-		}
-		fmt.Println("  ✓ created identity in Keychain (service \"sm\")")
-	}
-	identity, err := keys.Get()
-	if err != nil {
+	if err := secrets.Initialize(); err != nil {
 		return err
 	}
-	vp, err := keys.VaultPath()
-	if err != nil {
-		return err
-	}
-	if _, err := os.Stat(vp); os.IsNotExist(err) {
-		v, err := vaultfile.Open(vp, identity)
-		if err != nil {
-			return err
-		}
-		if err := v.Save(); err != nil {
-			return err
-		}
-		fmt.Println("  ✓ created vault", vp)
-	} else {
-		fmt.Println("  ✓ vault", vp)
-	}
+	fmt.Println("vault verified")
 
 	// 2. Global manifest.
 	gp, created, err := manifest.EnsureGlobal()
@@ -107,10 +77,6 @@ func cmdOnboard(args []string) error {
 	if !interactive {
 		fmt.Println("  skipped — add later with `sm add --global NAME`")
 	} else {
-		v, err := vaultfile.Open(vp, identity)
-		if err != nil {
-			return err
-		}
 		added := 0
 		for {
 			fmt.Print("  name (blank to finish, e.g. AWS_ACCESS_KEY_ID): ")
@@ -141,15 +107,8 @@ func cmdOnboard(args []string) error {
 				fmt.Println("  skipped (empty value)")
 				continue
 			}
-			ref := "vault://" + strings.ToLower(name)
-			r, err := manifest.ParseRef(ref)
-			if err != nil {
-				return err
-			}
-			if err := v.Set(r.Path, value); err != nil {
-				return err
-			}
-			if err := manifest.AppendSecret(gp, name, manifest.Secret{Ref: ref, Transport: manifest.TransportEnv}); err != nil {
+			ref := manifest.DefaultRef(gp, name)
+			if err := secrets.AddBatch(gp, []secrets.Input{{Name: name, Value: value}}, false); err != nil {
 				return err
 			}
 			existing[name] = true
@@ -176,6 +135,7 @@ func cmdOnboard(args []string) error {
 		return err
 	}
 	targets := wireup.Detect(exe, home)
+	failed := 0
 	if len(targets) == 0 {
 		fmt.Println("  no supported agents detected")
 	} else {
@@ -197,6 +157,7 @@ func cmdOnboard(args []string) error {
 				status, err := t.Apply()
 				if err != nil {
 					fmt.Printf("  !! %-14s %v\n", t.Name, err)
+					failed++
 					continue
 				}
 				fmt.Printf("  ✓ %-14s %s\n", t.Name, status)
@@ -212,7 +173,10 @@ func cmdOnboard(args []string) error {
 		fmt.Println("  sm add --global AWS_SECRET_ACCESS_KEY")
 		fmt.Println()
 	}
-	fmt.Println("done. try it:")
+	if failed > 0 {
+		return fmt.Errorf("vault is ready, but %d harness configurations failed; run sm setup to retry", failed)
+	}
+	fmt.Println("done. reconnect or restart your agents, then try:")
 	fmt.Println("  ask any agent: \"what secrets do you have?\"")
 	fmt.Println("  ask: \"run aws s3 ls\"")
 	fmt.Println("  shell: sm exec -- <command>")

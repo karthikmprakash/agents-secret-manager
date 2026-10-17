@@ -5,3 +5,4 @@
 
 # local env overrides (may contain plaintext)
 .env.local
+*.toml.lock
