@@ -327,12 +327,17 @@
     align-items: start; gap: 4px 10px;
     padding: 9px 10px; border: 1px solid var(--line-soft); border-radius: 8px;
   }
-  .detect-row input { flex: none; margin-top: 3px; }
+  .detect-row input[type="checkbox"] { margin-top: 3px; }
   .detect-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-  .detect-name {
+  .detect-name-input {
+    width: 100%; margin-left: -5px; padding: 2px 5px;
+    border: 1px solid transparent; border-radius: 6px;
+    background: transparent; color: var(--text);
     font: 500 12px var(--mono);
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
+  .detect-name-input:hover:not(:disabled) { border-color: var(--line-soft); }
+  .detect-name-input:focus { outline: none; border-color: var(--accent); background: var(--panel); }
+  .detect-name-input:disabled { color: var(--text-2); cursor: default; }
   .detect-meta { display: flex; align-items: center; gap: 6px; min-width: 0; flex-wrap: wrap; }
   .detect-value {
     font: 11px var(--mono); color: var(--text-2);
@@ -344,7 +349,7 @@
   }
   .detect-reveal:hover { color: var(--text); background: var(--panel-2); }
   .detect-reveal:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-  .detect-source { font-size: 10.5px; color: var(--text-3); }
+  .detect-source { font: 10.5px var(--mono); color: var(--text-3); }
   .detect-source::before { content: "·"; margin-right: 6px; }
   .detect-chips { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
   .detect-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
@@ -729,7 +734,7 @@
         <textarea id="pasteData" spellcheck="false" autocomplete="off" placeholder="AWS_ACCESS_KEY_ID=AKIA…&#10;export STRIPE_API_KEY=sk_live_…&#10;modal token set --token-id … --token-secret … --profile=you"></textarea>
       </label>
       <label class="field">Or load a file <input id="pasteFile" name="file" type="file" accept=".env,.txt,text/plain"></label>
-      <p class="hint">Detects .env lines and setup commands in one pass, groups related values, and stores nothing until you confirm. Sensitive values are masked until revealed; the preview clears when the sheet closes.</p>
+      <p class="hint">Detects .env lines and setup commands in one pass, groups related values, and stores nothing until you confirm. Bare emails, URLs and tokens get suggested names you can edit. Sensitive values are masked until revealed; the preview clears when the sheet closes.</p>
       <button class="btn" id="detectBtn" type="button">Detect</button>
       <div class="import-options" id="detectResults" aria-live="polite"></div>
     </section>
@@ -1374,7 +1379,11 @@
       return;
     }
     for (const suggestion of suggestions) {
-      const input = el("input", { type: "checkbox", value: suggestion.name });
+      const input = el("input", {
+        type: "checkbox",
+        value: suggestion.name,
+        "aria-label": "Select " + suggestion.name,
+      });
       input.checked = !suggestion.existing;
       input.disabled = !!suggestion.existing;
       const valueEl = el("code", {
@@ -1403,10 +1412,19 @@
           : null,
         suggestion.existing ? el("span", { class: "chip warn", text: "exists" }) : null,
       ].filter(Boolean);
-      list.append(el("label", { class: "detect-row" + (suggestion.existing ? " existing" : "") }, [
+      const nameInput = el("input", {
+        class: "detect-name-input",
+        type: "text",
+        value: suggestion.name,
+        spellcheck: "false",
+        autocomplete: "off",
+        "aria-label": "Name for the detected value",
+      });
+      nameInput.disabled = !!suggestion.existing;
+      list.append(el("div", { class: "detect-row" + (suggestion.existing ? " existing" : ""), "data-name": suggestion.name }, [
         input,
         el("span", { class: "detect-main" }, [
-          el("span", { class: "detect-name", text: suggestion.name }),
+          nameInput,
           el("span", { class: "detect-meta" }, [
             valueEl,
             reveal,
@@ -1569,11 +1587,34 @@
     error.hidden = true;
 
     if (state.sheet.mode === "import") {
-      const names = Array.from($("detectResults").querySelectorAll("input:checked:not(:disabled)")).map((input) => input.value);
-      if (!names.length) {
+      const rows = Array.from($("detectResults").querySelectorAll(".detect-row"));
+      const selected = rows.filter((row) => row.querySelector('input[type="checkbox"]:checked'));
+      if (!selected.length) {
         error.textContent = "Detect the text and select at least one entry.";
         error.hidden = false;
         return;
+      }
+      const names = [];
+      const renames = {};
+      const seen = new Set();
+      for (const row of selected) {
+        const original = row.dataset.name;
+        const edited = row.querySelector(".detect-name-input").value.trim();
+        if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(edited)) {
+          error.textContent = "Names use letters, digits and underscore, starting with a letter or underscore.";
+          error.hidden = false;
+          row.querySelector(".detect-name-input").focus();
+          return;
+        }
+        if (seen.has(edited)) {
+          error.textContent = "Names must be unique.";
+          error.hidden = false;
+          row.querySelector(".detect-name-input").focus();
+          return;
+        }
+        seen.add(edited);
+        names.push(original);
+        if (edited !== original) renames[original] = edited;
       }
       state.busy = true;
       $("saveBtn").disabled = true;
@@ -1582,7 +1623,7 @@
         const result = await api("/api/add-detected", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: $("pasteData").value, names, scope: "global" }),
+          body: JSON.stringify({ text: $("pasteData").value, names, renames, scope: "global" }),
         });
         state.busy = false;
         closeSheet(true);

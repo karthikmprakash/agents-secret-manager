@@ -9,11 +9,12 @@ the `0.x` series.
 
 ### Added
 
-- The Import sheet accepts any pasted text — .env lines, setup commands, or a
-  mix — and auto-detects entries (Modal, AWS, generic `KEY=value`), with
-  secret/config classification, inferred groups, and masked values that can be
-  revealed for verification. Missing groups are created on save; values are
-  never logged or exposed in stored state.
+- The Import sheet accepts any pasted text — .env lines, setup commands, bare
+  emails/URLs/tokens, or a mix — and auto-detects entries (Modal, AWS, generic
+  `KEY=value`), with secret/config classification, inferred groups, editable
+  names, and masked values that can be revealed for verification. Missing
+  groups are created on save; values are never logged or exposed in stored
+  state.
 
 - Secrets are organized into distinct group cards with member counts; each
   group has a quick-add action that preselects it.

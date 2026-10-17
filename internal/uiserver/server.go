@@ -410,9 +410,10 @@ func (s *Server) detect(w http.ResponseWriter, r *http.Request) {
 }
 
 type addDetectedRequest struct {
-	Text  string   `json:"text"`
-	Names []string `json:"names"`
-	Scope string   `json:"scope"`
+	Text    string            `json:"text"`
+	Names   []string          `json:"names"`
+	Renames map[string]string `json:"renames"`
+	Scope   string            `json:"scope"`
 }
 
 func (s *Server) addDetected(w http.ResponseWriter, r *http.Request) {
@@ -439,13 +440,22 @@ func (s *Server) addDetected(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		delete(wanted, suggestion.Name)
+		name := suggestion.Name
+		if renamed, ok := req.Renames[suggestion.Name]; ok {
+			renamed = strings.TrimSpace(renamed)
+			if !manifest.ValidName(renamed) {
+				writeError(w, 400, fmt.Errorf("invalid name %q", renamed))
+				return
+			}
+			name = renamed
+		}
 		var sensitive *bool
 		if !suggestion.Sensitive {
 			no := false
 			sensitive = &no
 		}
 		inputs = append(inputs, secrets.Input{
-			Name:  suggestion.Name,
+			Name:  name,
 			Value: suggestion.Value,
 			Secret: manifest.Secret{
 				Service:   suggestion.Service,

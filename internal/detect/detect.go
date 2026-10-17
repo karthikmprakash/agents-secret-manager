@@ -22,6 +22,10 @@ var (
 	envLine     = regexp.MustCompile(`^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=(.*)$`)
 	namePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 	placeholder = regexp.MustCompile(`(?i)^(<.*>|\.{3}|x{3,}|your[_-].*|changeme|placeholder|example([-_].*)?)$`)
+	emailValue  = regexp.MustCompile(`^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$`)
+	urlValue    = regexp.MustCompile(`^https?://[^\s]+$`)
+	tokenValue  = regexp.MustCompile(`^[A-Za-z0-9_\-+/=.]{24,}$`)
+	tokenPrefix = []string{"sk-", "pk-", "rk-", "ak-", "as-", "ghp_", "github_pat_", "xoxb-", "xoxp-", "whsec_"}
 
 	prefixServices = map[string]string{
 		"AWS": "aws", "STRIPE": "stripe", "OPENAI": "openai", "ANTHROPIC": "anthropic",
@@ -77,11 +81,42 @@ func Parse(text string) []Suggestion {
 		switch strings.ToLower(filepath.Base(tokens[0])) {
 		case "modal":
 			parseModal(tokens, add)
+			continue
 		case "aws":
 			parseAWS(tokens, add)
+			continue
 		}
+		parseBareValue(line, add)
 	}
 	return out
+}
+
+// parseBareValue recognizes a single pasted value without a name: an email,
+// URL, or token-like string. The suggested name is a starting point; the UI
+// lets the user rename it before storing.
+func parseBareValue(line string, add func(Suggestion)) {
+	value := cleanValue(line)
+	if value == "" || strings.ContainsAny(value, " \t") {
+		return
+	}
+	switch {
+	case emailValue.MatchString(value):
+		add(Suggestion{Name: "EMAIL", Value: value, Source: "plain value"})
+	case urlValue.MatchString(value):
+		add(Suggestion{Name: "BASE_URL", Value: value, Source: "plain value"})
+	case tokenish(value):
+		add(Suggestion{Name: "API_TOKEN", Value: value, Source: "plain value"})
+	}
+}
+
+func tokenish(value string) bool {
+	low := strings.ToLower(value)
+	for _, prefix := range tokenPrefix {
+		if strings.HasPrefix(low, prefix) {
+			return true
+		}
+	}
+	return tokenValue.MatchString(value)
 }
 
 func parseModal(tokens []string, add func(Suggestion)) {

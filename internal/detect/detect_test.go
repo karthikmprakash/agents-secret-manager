@@ -88,3 +88,34 @@ MODAL_TOKEN_ID=ak-2
 		t.Fatalf("dedupe wrong: %+v", got[0])
 	}
 }
+
+func TestParseBareValues(t *testing.T) {
+	text := `
+mkarthikprakash919@gmail.com
+https://api.example.com/v1
+sk-EXAMPLETOKEN1234567890
+just some prose that is not a value
+`
+	got := Parse(text)
+	if len(got) != 3 {
+		t.Fatalf("want 3 suggestions, got %+v", got)
+	}
+	if got[0].Name != "EMAIL" || got[0].Sensitive || got[0].Value != "mkarthikprakash919@gmail.com" {
+		t.Errorf("email = %+v", got[0])
+	}
+	if got[1].Name != "BASE_URL" || got[1].Sensitive {
+		t.Errorf("url = %+v", got[1])
+	}
+	if got[2].Name != "API_TOKEN" || !got[2].Sensitive {
+		t.Errorf("token = %+v", got[2])
+	}
+	if parseBareValueCount("a short phrase with spaces") != 0 {
+		t.Error("prose should not be detected")
+	}
+}
+
+func parseBareValueCount(text string) int {
+	count := 0
+	parseBareValue(text, func(Suggestion) { count++ })
+	return count
+}

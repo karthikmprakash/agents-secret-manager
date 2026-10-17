@@ -193,6 +193,79 @@ func TestDetectAndAdd(t *testing.T) {
 	}
 }
 
+func TestAddDetectedRename(t *testing.T) {
+	_, host, token := newTestServer(t)
+	const email = "mkarthikprakash919@gmail.com"
+
+	detectBody, _ := json.Marshal(map[string]string{"text": email})
+	code, body := do(t, "POST", sURL(host, "/api/detect"), token, string(detectBody))
+	if code != 200 {
+		t.Fatalf("detect code = %d: %s", code, body)
+	}
+	var detected struct {
+		Suggestions []struct {
+			Name      string `json:"name"`
+			Value     string `json:"value"`
+			Sensitive bool   `json:"sensitive"`
+		} `json:"suggestions"`
+	}
+	if err := json.Unmarshal(body, &detected); err != nil {
+		t.Fatal(err)
+	}
+	if len(detected.Suggestions) != 1 || detected.Suggestions[0].Name != "EMAIL" {
+		t.Fatalf("suggestions = %s", body)
+	}
+	if detected.Suggestions[0].Sensitive || detected.Suggestions[0].Value != email {
+		t.Errorf("email suggestion = %+v", detected.Suggestions[0])
+	}
+
+	addBody, _ := json.Marshal(map[string]any{
+		"text":    email,
+		"names":   []string{"EMAIL"},
+		"renames": map[string]string{"EMAIL": "PERSONAL_EMAIL"},
+		"scope":   "global",
+	})
+	code, body = do(t, "POST", sURL(host, "/api/add-detected"), token, string(addBody))
+	if code != 200 {
+		t.Fatalf("add-detected code = %d: %s", code, body)
+	}
+
+	code, body = do(t, "GET", sURL(host, "/api/state"), token, "")
+	if code != 200 {
+		t.Fatalf("state code = %d", code)
+	}
+	var state stateResponse
+	if err := json.Unmarshal(body, &state); err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, s := range state.Secrets {
+		if s.Name == "PERSONAL_EMAIL" {
+			found = true
+			if s.Sensitive {
+				t.Error("email should be stored as config")
+			}
+		}
+		if s.Name == "EMAIL" {
+			t.Error("original suggested name should have been renamed")
+		}
+	}
+	if !found {
+		t.Fatal("renamed entry missing")
+	}
+
+	badBody, _ := json.Marshal(map[string]any{
+		"text":    email,
+		"names":   []string{"EMAIL"},
+		"renames": map[string]string{"EMAIL": "bad name"},
+		"scope":   "global",
+	})
+	code, _ = do(t, "POST", sURL(host, "/api/add-detected"), token, string(badBody))
+	if code != 400 {
+		t.Errorf("invalid rename code = %d, want 400", code)
+	}
+}
+
 func TestMcpConfigSnippets(t *testing.T) {
 	_, host, token := newTestServer(t)
 	code, body := do(t, "GET", sURL(host, "/api/mcp-config"), token, "")

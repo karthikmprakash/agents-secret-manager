@@ -185,7 +185,9 @@ aws configure set aws_access_key_id AKIA…
 
 The Modal lines become `MODAL_TOKEN_ID` (secret, modal), `MODAL_TOKEN_SECRET`
 (secret, modal) and `MODAL_PROFILE` (config, modal); the env lines are grouped
-by their prefix. Missing groups are created when you store the selection.
+by their prefix. Bare values are recognized too: an email suggests `EMAIL`, a
+URL suggests `BASE_URL`, and a token-like string suggests `API_TOKEN` — rename
+any suggestion inline before storing. Missing groups are created on save.
 
 Supported today: `modal token set`, `modal profile activate`,
 `aws configure set`, and `KEY=value` / `export KEY=value` lines (a leading `$`
