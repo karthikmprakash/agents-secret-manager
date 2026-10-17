@@ -106,6 +106,8 @@ func Run(opts Options, secrets []Secret, managedNames []string) *Result {
 		}
 		targets = append(targets, walkJSONL(filepath.Join(opts.HomeDir, ".claude"), "~/.claude")...)
 		targets = append(targets, walkJSONL(filepath.Join(opts.HomeDir, ".codex"), "~/.codex")...)
+		addFile(filepath.Join(opts.HomeDir, ".hermes", "config.yaml"), "~/.hermes/config.yaml")
+		addFile(filepath.Join(opts.HomeDir, ".hermes", ".env"), "~/.hermes/.env")
 		if matches, _ := filepath.Glob(filepath.Join(opts.HomeDir, ".cursor", "projects", "*", "agent-transcripts", "*.jsonl")); len(matches) > 0 {
 			for _, m := range matches {
 				addFile(m, relHome(m, opts.HomeDir))

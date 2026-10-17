@@ -21,6 +21,9 @@ go build -o sm ./cmd/sm
 ./sm rotate GITHUB_TOKEN  # new value; every ref keeps working
 ./sm doctor               # find plaintext copies: rc files, transcripts, git history
 ./sm log verify           # audit trail + hash chain
+
+./sm setup                # detect installed agents, wire the MCP server into each (one time)
+                          # after this, agents see secret_list / secret_run — no per-folder setup
 ```
 
 `.env` can reference declared secrets by name:
@@ -52,4 +55,6 @@ internal/redact/   streaming value redaction
 internal/audit/    hash-chained JSONL audit log
 internal/scan/     doctor: rc files, transcripts, MCP configs, git history
 internal/tpl/      template rendering, 0600 materialization, shred
+internal/mcpserver/ MCP stdio server: secret_list, secret_run (never get)
+internal/agentcfg/  MCP config merges for agent harnesses (JSON/YAML)
 ```

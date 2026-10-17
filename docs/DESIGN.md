@@ -223,3 +223,14 @@ internal/broker/   v0.3 · daemon · HTTPS_PROXY egress injection
   `~/.config/sm/manifest.toml`, which is merged underneath every project —
   the way to store model API keys used by every agent (the global manifest is
   created on demand).
+- `sm mcp`: MCP stdio server. Tools `secret_list` and `secret_run`; there is
+  deliberately no `secret_get`. Server instructions tell the agent to route
+  credential-needing commands through `secret_run`; output is redacted and
+  audited (action `inject`). Tool calls accept an optional `cwd` so agents can
+  target a project regardless of the server's working directory.
+- `sm setup [--dry-run]`: detects installed agents and wires the server once:
+  OpenCode (`opencode mcp add --global`), Claude Code (`claude mcp add -s user`),
+  Hermes (`mcp_servers.sm` in `~/.hermes/config.yaml`), Cursor
+  (`~/.cursor/mcp.json`), Claude Desktop, Gemini CLI and Windsurf (JSON
+  `mcpServers`). File edits keep a `.sm-backup`. Idempotent.
+- `sm doctor` also scans `~/.hermes/config.yaml` and `~/.hermes/.env`.

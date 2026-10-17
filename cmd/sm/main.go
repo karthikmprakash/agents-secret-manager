@@ -7,7 +7,7 @@ import (
 	"os"
 )
 
-const version = "0.1.0"
+const version = "0.2.0-dev"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -33,6 +33,10 @@ func main() {
 		err = cmdDoctor(os.Args[2:])
 	case "rotate":
 		err = cmdRotate(os.Args[2:])
+	case "mcp":
+		err = cmdMcp(os.Args[2:])
+	case "setup":
+		err = cmdSetup(os.Args[2:])
 	case "log":
 		err = cmdLog(os.Args[2:])
 	case "version", "--version", "-v":
@@ -70,6 +74,8 @@ usage:
                           render a template to a 0600 file, run CMD, shred on exit
   sm doctor [flags]       scan rc files, transcripts, MCP configs and git history for leaks
   sm rotate NAME [flags]  replace a stored value; every ref keeps working
+  sm mcp                  run the MCP server over stdio (agent clients start this)
+  sm setup [--dry-run]    detect installed agents and wire the MCP server into them
   sm log [verify]         show the audit trail, or verify its hash chain
   sm version              print version
 
