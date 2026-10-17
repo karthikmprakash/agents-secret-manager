@@ -64,9 +64,14 @@ func Start(port int) (*Server, error) {
 	mux.HandleFunc("POST /api/initialize", s.auth(s.initialize))
 	mux.HandleFunc("POST /api/add", s.auth(s.add))
 	mux.HandleFunc("POST /api/group", s.auth(s.group))
+	mux.HandleFunc("POST /api/service", s.auth(s.service))
+	mux.HandleFunc("POST /api/recovery/export", s.auth(s.exportRecovery))
+	mux.HandleFunc("POST /api/recovery/inspect", s.auth(s.inspectRecovery))
+	mux.HandleFunc("POST /api/recovery/restore", s.auth(s.restoreRecovery))
 	mux.HandleFunc("POST /api/rotate", s.auth(s.rotate))
 	mux.HandleFunc("POST /api/import", s.auth(s.bulkImport))
 	mux.HandleFunc("POST /api/detect", s.auth(s.detect))
+	mux.HandleFunc("POST /api/review-detected", s.auth(s.reviewDetected))
 	mux.HandleFunc("POST /api/add-detected", s.auth(s.addDetected))
 	mux.HandleFunc("GET /api/agents", s.auth(s.agents))
 	mux.HandleFunc("GET /api/mcp-config", s.auth(s.mcpConfig))
@@ -184,10 +189,14 @@ func writeError(w http.ResponseWriter, status int, err error) {
 	writeJSON(w, status, map[string]string{"error": err.Error()})
 }
 func decode(r *http.Request, v any) error {
+	return decodeLimit(r, v, 1<<20)
+}
+
+func decodeLimit(r *http.Request, v any, limit int64) error {
 	defer r.Body.Close()
-	data, err := io.ReadAll(io.LimitReader(r.Body, (1<<20)+1))
-	if err != nil || len(data) > 1<<20 {
-		return fmt.Errorf("request exceeds 1 MiB or could not be read")
+	data, err := io.ReadAll(io.LimitReader(r.Body, limit+1))
+	if err != nil || int64(len(data)) > limit {
+		return fmt.Errorf("request exceeds the size limit or could not be read")
 	}
 	trimmed := bytes.TrimSpace(data)
 	if len(trimmed) == 0 || trimmed[0] != '{' {
@@ -354,10 +363,12 @@ func (s *Server) add(w http.ResponseWriter, r *http.Request) {
 }
 
 type detectRequest struct {
-	Text string `json:"text"`
+	Text  string `json:"text"`
+	Scope string `json:"scope,omitempty"`
 }
 
 type detectView struct {
+	ID        string `json:"id"`
 	Name      string `json:"name"`
 	Value     string `json:"value"`
 	Service   string `json:"service,omitempty"`
@@ -365,6 +376,9 @@ type detectView struct {
 	Source    string `json:"source"`
 	Existing  bool   `json:"existing"`
 	NewGroup  bool   `json:"newGroup"`
+	Line      int    `json:"line"`
+	Reason    string `json:"reason"`
+	Conflict  string `json:"conflict"`
 }
 
 func (s *Server) detect(w http.ResponseWriter, r *http.Request) {
@@ -387,16 +401,23 @@ func (s *Server) detect(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, err)
 		return
 	}
-	merged := loaded.Merged()
+	merged, err := importManifest(loaded, req.Scope)
+	if err != nil {
+		writeError(w, 400, err)
+		return
+	}
 	groups := map[string]bool{}
 	for _, group := range merged.Services() {
 		groups[group] = true
 	}
-	suggestions := detect.Parse(req.Text)
+	report := detect.Analyze(req.Text)
+	suggestions := report.Suggestions
+	lookup := importLookup(merged)
 	out := make([]detectView, 0, len(suggestions))
 	for _, suggestion := range suggestions {
 		_, exists := merged.Secrets[suggestion.Name]
 		out = append(out, detectView{
+			ID:        suggestion.ID,
 			Name:      suggestion.Name,
 			Value:     suggestion.Value,
 			Service:   suggestion.Service,
@@ -404,9 +425,20 @@ func (s *Server) detect(w http.ResponseWriter, r *http.Request) {
 			Source:    suggestion.Source,
 			Existing:  exists,
 			NewGroup:  suggestion.Service != "" && !groups[suggestion.Service],
+			Line:      suggestion.Line,
+			Reason:    suggestion.Reason,
+			Conflict:  lookup(suggestion.Name, suggestion.Value),
 		})
 	}
-	writeJSON(w, 200, map[string]any{"suggestions": out})
+	writeJSON(w, 200, map[string]any{"suggestions": out, "warnings": report.Warnings})
+}
+
+type detectedEdit struct {
+	ID        string  `json:"id"`
+	Name      string  `json:"name"`
+	Value     *string `json:"value,omitempty"`
+	Service   *string `json:"service,omitempty"`
+	Sensitive *bool   `json:"sensitive,omitempty"`
 }
 
 type addDetectedRequest struct {
@@ -414,6 +446,151 @@ type addDetectedRequest struct {
 	Names   []string          `json:"names"`
 	Renames map[string]string `json:"renames"`
 	Scope   string            `json:"scope"`
+	Entries []detectedEdit    `json:"entries,omitempty"`
+}
+
+// importLookup compares locally without returning stored values to the UI.
+func importLookup(m *manifest.Manifest) func(string, string) string {
+	id, err := keys.Get()
+	var v *vaultfile.Vault
+	if err == nil {
+		if vp, e := keys.VaultPath(); e == nil {
+			v, _ = vaultfile.Open(vp, id)
+		}
+	}
+	return func(name, value string) string {
+		sec, exists := m.Secrets[name]
+		if !exists {
+			return "new"
+		}
+		if v == nil {
+			return "unavailable"
+		}
+		ref, _ := manifest.ParseRef(sec.Ref)
+		stored, found, err := v.Get(ref.Path)
+		if err != nil || !found {
+			return "unavailable"
+		}
+		if stored == value {
+			return "same"
+		}
+		return "different"
+	}
+}
+
+func importManifest(l *manifest.Loaded, scope string) (*manifest.Manifest, error) {
+	var m *manifest.Manifest
+	switch scope {
+	case "", "global":
+		m = l.Global
+	case "project":
+		if l.Project == nil {
+			return nil, fmt.Errorf("no project manifest found")
+		}
+		m = l.Project
+	default:
+		return nil, fmt.Errorf("scope must be global or project")
+	}
+	if m == nil {
+		m = &manifest.Manifest{Secrets: map[string]manifest.Secret{}}
+	}
+	return m, nil
+}
+
+func prepareDetected(req addDetectedRequest) ([]secrets.Input, error) {
+	if len(req.Text) > 128<<10 {
+		return nil, fmt.Errorf("paste is too large (128 KiB limit)")
+	}
+	parsed := detect.Parse(req.Text)
+	byID := map[string]detect.Suggestion{}
+	byName := map[string]detect.Suggestion{}
+	for _, s := range parsed {
+		byID[s.ID] = s
+		byName[s.Name] = s
+	}
+	entries := req.Entries
+	if len(entries) == 0 {
+		for _, name := range req.Names {
+			s, ok := byName[name]
+			if !ok {
+				return nil, fmt.Errorf("selected entry was not detected; parse the text again")
+			}
+			edited := name
+			if renamed, ok := req.Renames[name]; ok {
+				edited = renamed
+			}
+			entries = append(entries, detectedEdit{ID: s.ID, Name: edited})
+		}
+	}
+	if len(entries) == 0 || len(entries) > 50 {
+		return nil, fmt.Errorf("select between 1 and 50 entries")
+	}
+	seenID, seenName := map[string]bool{}, map[string]bool{}
+	var inputs []secrets.Input
+	for _, edit := range entries {
+		s, ok := byID[edit.ID]
+		if !ok || seenID[edit.ID] {
+			return nil, fmt.Errorf("invalid or repeated entry selection; parse the text again")
+		}
+		seenID[edit.ID] = true
+		name := strings.TrimSpace(edit.Name)
+		if !manifest.ValidName(name) || seenName[name] {
+			return nil, fmt.Errorf("entry names must be valid and unique")
+		}
+		seenName[name] = true
+		if edit.Value != nil {
+			s.Value = *edit.Value
+		}
+		if edit.Service != nil {
+			s.Service = strings.TrimSpace(*edit.Service)
+		}
+		if s.Service != "" && !manifest.ValidService(s.Service) {
+			return nil, fmt.Errorf("group names must use letters, digits, dot, dash or underscore (max 32)")
+		}
+		if edit.Sensitive != nil {
+			s.Sensitive = *edit.Sensitive
+		}
+		if s.Value == "" || strings.ContainsRune(s.Value, 0) || len(s.Value) > 1<<20 {
+			return nil, fmt.Errorf("each value must be non-empty, without NUL bytes, and at most 1 MiB")
+		}
+		sensitive := s.Sensitive
+		inputs = append(inputs, secrets.Input{Name: name, Value: s.Value, Secret: manifest.Secret{Service: s.Service, Sensitive: &sensitive}})
+	}
+	return inputs, nil
+}
+
+func (s *Server) reviewDetected(w http.ResponseWriter, r *http.Request) {
+	var req addDetectedRequest
+	if err := decode(r, &req); err != nil {
+		writeError(w, 400, err)
+		return
+	}
+	inputs, err := prepareDetected(req)
+	if err != nil {
+		writeError(w, 400, err)
+		return
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		writeError(w, 500, err)
+		return
+	}
+	l, err := manifest.LoadOptional(cwd)
+	if err != nil {
+		writeError(w, 500, err)
+		return
+	}
+	m, err := importManifest(l, req.Scope)
+	if err != nil {
+		writeError(w, 400, err)
+		return
+	}
+	lookup := importLookup(m)
+	items := []map[string]string{}
+	for _, in := range inputs {
+		items = append(items, map[string]string{"name": in.Name, "conflict": lookup(in.Name, in.Value)})
+	}
+	writeJSON(w, 200, map[string]any{"entries": items})
 }
 
 func (s *Server) addDetected(w http.ResponseWriter, r *http.Request) {
@@ -422,58 +599,9 @@ func (s *Server) addDetected(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, err)
 		return
 	}
-	if len(req.Text) > 128<<10 {
-		writeError(w, 400, fmt.Errorf("paste is too large (128 KiB limit)"))
-		return
-	}
-	if len(req.Names) == 0 || len(req.Names) > 50 {
-		writeError(w, 400, fmt.Errorf("select between 1 and 50 suggestions"))
-		return
-	}
-	wanted := map[string]bool{}
-	for _, name := range req.Names {
-		wanted[name] = true
-	}
-	var inputs []secrets.Input
-	for _, suggestion := range detect.Parse(req.Text) {
-		if !wanted[suggestion.Name] {
-			continue
-		}
-		delete(wanted, suggestion.Name)
-		name := suggestion.Name
-		if renamed, ok := req.Renames[suggestion.Name]; ok {
-			renamed = strings.TrimSpace(renamed)
-			if !manifest.ValidName(renamed) {
-				writeError(w, 400, fmt.Errorf("invalid name %q", renamed))
-				return
-			}
-			name = renamed
-		}
-		var sensitive *bool
-		if !suggestion.Sensitive {
-			no := false
-			sensitive = &no
-		}
-		inputs = append(inputs, secrets.Input{
-			Name:  name,
-			Value: suggestion.Value,
-			Secret: manifest.Secret{
-				Service:   suggestion.Service,
-				Sensitive: sensitive,
-			},
-		})
-	}
-	if len(inputs) == 0 {
-		writeError(w, 400, fmt.Errorf("none of the selected suggestions were detected"))
-		return
-	}
-	if len(wanted) > 0 {
-		missing := make([]string, 0, len(wanted))
-		for name := range wanted {
-			missing = append(missing, name)
-		}
-		sort.Strings(missing)
-		writeError(w, 400, fmt.Errorf("could not detect: %s", strings.Join(missing, ", ")))
+	inputs, err := prepareDetected(req)
+	if err != nil {
+		writeError(w, 400, err)
 		return
 	}
 	p, err := target(req.Scope)
@@ -481,7 +609,7 @@ func (s *Server) addDetected(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, err)
 		return
 	}
-	if err := secrets.AddBatch(p, inputs, false); err != nil {
+	if err := secrets.AddBatch(p, inputs, true); err != nil {
 		writeError(w, 409, err)
 		return
 	}
@@ -492,6 +620,30 @@ type groupRequest struct {
 	Name    string `json:"name"`
 	Scope   string `json:"scope"`
 	Service string `json:"service"`
+}
+
+func (s *Server) service(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		From  string   `json:"from"`
+		To    string   `json:"to"`
+		Scope string   `json:"scope"`
+		Names []string `json:"names"`
+	}
+	if err := decode(r, &req); err != nil {
+		writeError(w, 400, err)
+		return
+	}
+	p, err := target(req.Scope)
+	if err != nil {
+		writeError(w, 400, err)
+		return
+	}
+	names, err := secrets.MoveService(p, req.From, req.To, req.Names)
+	if err != nil {
+		writeError(w, 409, err)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"names": names})
 }
 
 func (s *Server) group(w http.ResponseWriter, r *http.Request) {

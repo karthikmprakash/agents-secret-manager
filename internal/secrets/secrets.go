@@ -222,6 +222,51 @@ func SetService(target, name, service string) error {
 	return manifest.SetService(target, name, service)
 }
 
+// MoveService changes only the selected labels. Expected source labels prevent
+// stale Undo actions from regrouping entries edited by another process.
+func MoveService(target, from, to string, names []string) ([]string, error) {
+	if (from != "" && !manifest.ValidService(from)) || (to != "" && !manifest.ValidService(to)) {
+		return nil, fmt.Errorf("invalid group name")
+	}
+	dir, err := config.Dir()
+	if err != nil {
+		return nil, err
+	}
+	unlock, err := safeio.Lock(filepath.Join(dir, "mutation.lock"))
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
+	current, err := manifest.Load(target)
+	if err != nil {
+		return nil, err
+	}
+	if len(names) == 0 {
+		if from == "" {
+			return nil, fmt.Errorf("select the entries to regroup")
+		}
+		names = current.ServiceMembers(from)
+	}
+	if len(names) == 0 {
+		return nil, fmt.Errorf("group has no entries in this scope")
+	}
+	changes := map[string]string{}
+	for _, name := range names {
+		s, ok := current.Secrets[name]
+		if !ok || s.Service != from {
+			return nil, fmt.Errorf("group changed since it was opened; refresh before saving")
+		}
+		changes[name] = to
+	}
+	if err := record(dir, "group", names); err != nil {
+		return nil, err
+	}
+	if err := manifest.SetServices(target, changes); err != nil {
+		return nil, err
+	}
+	return names, nil
+}
+
 // Rotate updates only the declared path; it does not rotate a provider's key.
 func Rotate(cwd, name, value string) error {
 	if err := validValue(value); err != nil {

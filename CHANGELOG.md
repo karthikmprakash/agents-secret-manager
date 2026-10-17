@@ -9,6 +9,18 @@ the `0.x` series.
 
 ### Added
 
+- Fully editable local import review (name, value, group, Secret/Config), local
+  same/different-value checks, line warnings, stable entry IDs, and preservation
+  of differing duplicate names. Unknown values now default to Secret.
+- Local parsing of JSON/YAML, labeled text, email addresses within prose, and
+  curl authorization/API-key headers. Credential-bearing URLs stay sensitive.
+- Group-level rename/ungroup with guarded UI Undo; `sm service` CLI, and search
+  by service, scope, type and status.
+- Passphrase-encrypted local recovery in CLI and UI: export, verify, restore
+  into an empty destination with a new identity. No cloud storage or master-key
+  export. Native macOS save-dialog support for encrypted recovery downloads.
+- Isolated Playwright regression script for import, groups and recovery.
+
 - The Import sheet accepts any pasted text — .env lines, setup commands, bare
   emails/URLs/tokens, or a mix — and auto-detects entries (Modal, AWS, generic
   `KEY=value`), with secret/config classification, inferred groups, editable

@@ -105,13 +105,33 @@ provides the same shapes for manual wiring (`sm config`, UI **Manual setup**).
 
 ## Invariants
 
-1. No tool or endpoint returns a secret value.
+1. No MCP tool or stored-state endpoint returns a raw vault value. The import
+   preview echoes only values from the user's current paste for local review;
+   recovery downloads contain passphrase-encrypted bytes, never plaintext.
 2. The model only sees names, status and redacted command output.
 3. Child processes receive plaintext credentials — this is not a sandbox.
 4. Manifests carry references only; values live in the vault.
 5. Writes are locked, atomic and validated; edits preserve unrelated content.
 6. Redaction covers exact registered *sensitive* values in captured output only.
 7. Test overrides (`SM_CONFIG_DIR`, `SM_IDENTITY`) never ship in agent configs.
+8. Parsing, review, recovery, and UI assets are local-only: no model API,
+   telemetry, cloud account, or remote storage. User-invoked child commands may
+   contact their providers; sm does not sandbox those commands.
+
+## Import review and recovery
+
+`internal/detect.Analyze` handles structured objects, env lines, supported CLIs,
+curl headers and labeled text. Stable per-paste IDs identify entries independently
+of their editable names. Different values are preserved; unknown classifications
+default to sensitive. `/api/review-detected` compares selected drafts locally;
+`/api/add-detected` validates IDs, names, values and metadata before the shared
+batch mutation. Same-value reuse never silently changes existing metadata.
+
+`internal/recovery` encrypts the global manifest and all vault values into an age
+scrypt archive. Restore authenticates and bounds the full archive before writing,
+then re-encrypts under the destination identity. It refuses existing destinations.
+The CLI and authenticated local UI share this core; no recovery tools are exposed
+over MCP. Project manifests and audit history are not included.
 
 ## Tests
 
@@ -121,3 +141,6 @@ provides the same shapes for manual wiring (`sm config`, UI **Manual setup**).
 - The streaming redactor has a fuzz target (`FuzzStreaming`).
 - `internal/uiserver/preview_test.go` drives a real browser when
   `SM_UI_PREVIEW=1` is set (Playwright; not part of default CI).
+- `python3 scripts/test-ui.py` starts its own isolated fixtures and exercises
+  editable import/conflicts, group Undo, backup download, clean restore and
+  light/dark layouts at 390/1040/1440 px. No real vault or Keychain is used.

@@ -12,6 +12,7 @@ coverage.out
 .env.local
 
 # sm runtime artifacts
+*.age
 *.toml.lock
 *.sm-backup
 *.sm-lock

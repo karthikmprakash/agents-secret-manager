@@ -45,6 +45,12 @@ func main() {
 		err = cmdConfig(os.Args[2:])
 	case "group":
 		err = cmdGroup(os.Args[2:])
+	case "service":
+		err = cmdService(os.Args[2:])
+	case "backup":
+		err = cmdBackup(os.Args[2:])
+	case "restore":
+		err = cmdRestore(os.Args[2:])
 	case "ui":
 		err = cmdUi(os.Args[2:])
 	case "log":
@@ -96,6 +102,10 @@ usage:
                           print MCP config snippets for manual wiring
   sm group NAME --service S
                           move a secret into a service group (or --ungroup)
+  sm service NAME --rename NEW|--ungroup
+                          manage a whole group without deleting values
+  sm backup --out FILE    create a passphrase-encrypted local recovery archive
+  sm restore --file FILE  restore into an empty vault (--verify to check only)
   sm ui [--port N]        open the local desktop UI (loopback, token required)
   sm log [verify]         show the audit trail, or verify its hash chain
   sm version              print version

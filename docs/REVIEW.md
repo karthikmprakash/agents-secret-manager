@@ -91,9 +91,10 @@ workflow. Untrusted-agent isolation remains a separate architectural project.
 
 ## Not implemented — prioritize before wider release
 
-1. **Portable encrypted backup and restore.** Keychain loss without a separately
-   backed-up identity makes the vault unrecoverable. Add a passphrase-encrypted
-   recovery archive and test restore into a clean Mac. No hidden export/get tool.
+1. **Recovery follow-up.** Local passphrase-encrypted archives and empty-vault
+   restore are now implemented and tested with a different destination identity.
+   Next: recovery reminders, project-manifest packaging and crash recovery during
+   two-file installation. There is no hidden MCP export/get tool or cloud backup.
 2. **Enforced access boundaries.** Current MCP runs arbitrary shell code as the
    user. Exact-value redaction can be bypassed with encoding/network/file writes.
    Add identity-bound permissions, approvals, process isolation and a broker

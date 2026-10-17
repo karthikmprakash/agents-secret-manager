@@ -97,3 +97,31 @@ func TestInvalidTransportAddDoesNotDeclare(t *testing.T) {
 		t.Fatal("invalid add broke manifest")
 	}
 }
+
+func TestServiceRenameAndUngroupCLI(t *testing.T) {
+	cliFixture(t)
+	if err := secrets.Initialize(); err != nil {
+		t.Fatal(err)
+	}
+	if err := cmdAdd([]string{"DEMO_KEY", "--global", "--service", "demo", "--generate", "hex/32"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := cmdService([]string{"demo", "--rename", "renamed"}); err != nil {
+		t.Fatal(err)
+	}
+	p, _ := manifest.GlobalPath()
+	m, err := manifest.Load(p)
+	if err != nil || m.Secrets["DEMO_KEY"].Service != "renamed" {
+		t.Fatal("service was not renamed")
+	}
+	if err := cmdService([]string{"renamed", "--ungroup"}); err != nil {
+		t.Fatal(err)
+	}
+	m, err = manifest.Load(p)
+	if err != nil || m.Secrets["DEMO_KEY"].Service != "" {
+		t.Fatal("service was not ungrouped")
+	}
+	if err := cmdService([]string{"missing", "--rename", "new"}); err == nil {
+		t.Fatal("missing group accepted")
+	}
+}

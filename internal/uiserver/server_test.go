@@ -195,7 +195,7 @@ func TestDetectAndAdd(t *testing.T) {
 
 func TestAddDetectedRename(t *testing.T) {
 	_, host, token := newTestServer(t)
-	const email = "mkarthikprakash919@gmail.com"
+	const email = "person@example.org"
 
 	detectBody, _ := json.Marshal(map[string]string{"text": email})
 	code, body := do(t, "POST", sURL(host, "/api/detect"), token, string(detectBody))

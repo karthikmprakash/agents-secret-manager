@@ -2,7 +2,7 @@ SHELL := /bin/bash
 BINARY ?= $(HOME)/.local/bin/sm
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 
-.PHONY: build test test-race vet fmt check ui app clean
+.PHONY: build test test-race test-ui vet fmt check ui app clean
 
 build:
 	go build -trimpath -ldflags "-s -w -X main.version=$(VERSION)" -o $(BINARY) ./cmd/sm
@@ -12,6 +12,9 @@ test:
 
 test-race:
 	go test -race ./...
+
+test-ui:
+	python3 scripts/test-ui.py
 
 vet:
 	go vet ./...

@@ -20,7 +20,7 @@ By participating you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
 - **Tests** — resolver precedence, redaction edge cases, adapter merges,
   manifest edits, UI states.
 - **Platform work** — Linux/Windows identity backends, notarized macOS
-  distribution, a portable encrypted backup/restore flow. These are tracked in
+  distribution, and stronger recovery/retention workflows. These are tracked in
   [docs/REVIEW.md](docs/REVIEW.md).
 
 ## Development setup
@@ -61,6 +61,7 @@ override and is stripped from task children.
 | `internal/agentcfg/` | Comment-preserving merges for JSON/YAML/TOML agent configs |
 | `internal/secrets/` | Shared validated mutations used by CLI and UI |
 | `internal/detect/` | Parses pasted commands/env lines for the detect → review flow |
+| `internal/recovery/` | Local passphrase-encrypted archives and empty-vault restore |
 | `internal/scan/` | `sm doctor` scanner (registered values only) |
 | `internal/uiserver/` | Loopback HTTP server, API and embedded UI |
 | `macapp/`, `scripts/` | WKWebView shell and build script |
@@ -98,10 +99,15 @@ Then:
 ```sh
 make test                 # unit + CLI flows
 make test-race
+python3 scripts/test-ui.py  # opt-in Playwright regressions, isolated vaults
 go test ./internal/redact -fuzz=FuzzStreaming -fuzztime=10s
 ```
 
 The UI has an interactive preview fixture (requires Playwright and a browser):
+
+The complete browser regression script requires `python3 -m pip install playwright`
+and `python3 -m playwright install chromium`. It starts and stops its own isolated
+fixtures. Set `SM_UI_SCREENSHOTS` to retain screenshots of dummy data locally.
 
 ```sh
 SM_UI_PREVIEW=1 SM_UI_PREVIEW_SEEDED=1 go test -v ./internal/uiserver \

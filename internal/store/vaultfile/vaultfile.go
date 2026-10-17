@@ -103,6 +103,21 @@ func (v *Vault) Save() error {
 	return v.update(func(map[string]string) error { return nil })
 }
 
+// SetBatch is used for recovery into a new vault; it refuses any replacement.
+func (v *Vault) SetBatch(entries map[string]string) error {
+	return v.update(func(values map[string]string) error {
+		for key := range entries {
+			if _, ok := values[key]; ok {
+				return fmt.Errorf("vault path already exists")
+			}
+		}
+		for key, value := range entries {
+			values[key] = value
+		}
+		return nil
+	})
+}
+
 func (v *Vault) update(change func(map[string]string) error) error {
 	v.mu.Lock()
 	defer v.mu.Unlock()

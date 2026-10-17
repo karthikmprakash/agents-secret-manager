@@ -310,6 +310,10 @@
   .sheet-head p { margin: 3px 0 0; font-size: 12px; color: var(--text-3); }
   .sheet-head .btn { margin-left: auto; }
   form { display: flex; flex-direction: column; gap: 16px; padding: 20px 24px; overflow: auto; }
+  #secretForm { flex: 1; min-height: 0; padding: 0; gap: 0; overflow: hidden; }
+  .sheet-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 16px; padding: 20px 24px; }
+  #secretForm .sheet-foot { flex: none; padding: 16px 24px; border-top: 1px solid var(--line-soft); }
+  #view-recovery form .btn { align-self: flex-start; }
   .field { display: flex; flex-direction: column; gap: 6px; font-size: 11.5px; color: var(--text-2); }
   .field input, .field select {
     height: 34px; padding: 0 10px; outline: none;
@@ -355,6 +359,34 @@
   .detect-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
   .detect-row.existing { opacity: .55; }
   .detect-empty { margin: 0; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  .file-drop {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 10px 12px; border: 1px dashed var(--line); border-radius: 10px;
+    background: var(--panel-2);
+    transition: border-color .12s ease, background .12s ease;
+  }
+  .file-drop.dragover { border-color: var(--accent); background: var(--accent-soft); }
+  .file-drop .file-name {
+    flex: 1; min-width: 0; font: 11.5px var(--mono); color: var(--text-2);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .file-drop .file-clear { margin-left: auto; }
+  #sheet[data-mode="import"] { width: min(680px, 100vw); }
+  #sheet[data-mode="import"] .import-options { max-height: none; overflow: visible; }
+  .review-entry { padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+  .review-entry-head, .review-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .review-entry-head .hint { margin: 0; flex: 1; }
+  .review-entry-head input { margin: 0; }
+  .review-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+  .review-fields .field { min-width: 0; align-items: stretch; font: 12px var(--sans); }
+  .review-fields .field input, .review-fields .field select { width: 100%; min-width: 0; }
+  .review-fields .review-value-field .btn { align-self: flex-end; }
+  .review-value-field { grid-column: 1 / -1; }
+  .review-warning { border-left: 2px solid var(--warn); padding: 8px 12px; margin: 8px 0; color: var(--text-2); font-size: 12px; }
+  .review-conflict { font-size: 11.5px; color: var(--text-2); }
+  .review-conflict[data-status="different"], .review-conflict[data-status="unavailable"] { color: var(--warn); }
+  @media (max-width: 640px) { .review-fields { grid-template-columns: minmax(0, 1fr); } }
   .import-options label { display: flex; align-items: center; gap: 8px; overflow-wrap: anywhere; font-family: var(--mono); font-size: 12px; }
   .agent > div:nth-child(2) { min-width: 0; flex: 1; }
   .agent-detail { overflow-wrap: anywhere; }
@@ -547,6 +579,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>
         Audit
       </button>
+      <button class="nav-item" data-view="recovery">Recovery</button>
     </nav>
 
     <div class="rail-foot">
@@ -637,6 +670,41 @@
         <p>Run a command through <code>sm exec</code> or <code>secret_run</code> and it will appear here — names only.</p>
       </div>
     </section>
+
+    <section class="view" id="view-recovery" hidden>
+      <div class="notice">
+        <h2>Your files, on your device</h2>
+        <p>No account, telemetry, cloud sync, or model API is used. Recovery archives contain your global manifest and all vault values, encrypted with a passphrase you choose. Keep project reference manifests in their repositories.</p>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><div><h2>Create a recovery archive</h2><p>Use a unique passphrase of at least 12 characters. Save it separately from the archive.</p></div></div>
+        <form id="backupForm">
+          <label class="field">Recovery passphrase<input id="backupPassword" name="passphrase" type="password" autocomplete="new-password" minlength="12" required></label>
+          <label class="field">Confirm passphrase<input id="backupConfirm" name="confirmation" type="password" autocomplete="new-password" required></label>
+          <button class="btn primary" id="backupBtn" type="submit">Save encrypted archive</button>
+          <p class="hint" id="backupStatus" role="status">Only encrypted bytes are downloaded. Nothing is uploaded to another machine.</p>
+        </form>
+      </div>
+      <div class="panel" style="margin-top:24px">
+        <div class="panel-head"><div><h2>Verify or restore</h2><p>Verification changes nothing. Restore only works before creating a vault on the destination Mac; existing vaults are never replaced.</p></div></div>
+        <form id="restoreForm">
+          <div class="field">
+            <span>Recovery archive</span>
+            <div class="file-drop" id="restoreDrop">
+              <button class="btn small" id="restoreFileBtn" type="button">Choose encrypted archive</button>
+              <input id="restoreFile" name="archive" type="file" accept=".age,application/octet-stream" class="sr-only" tabindex="-1">
+              <span class="file-name" id="restoreFileName">No archive selected</span>
+              <button class="btn small ghost file-clear" id="restoreFileClear" type="button" hidden>Clear</button>
+            </div>
+            <small>Encrypted .age archive. You can also drop it here.</small>
+          </div>
+          <label class="field">Recovery passphrase<input id="restorePassword" name="passphrase" type="password" autocomplete="off" required></label>
+          <button class="btn" id="verifyBackupBtn" type="submit">Verify archive</button>
+          <p class="hint" id="restoreStatus" role="status"></p>
+          <button class="btn primary" id="restoreBtn" type="button" hidden>Restore into empty vault</button>
+        </form>
+      </div>
+    </section>
   </main>
 </div>
 
@@ -653,6 +721,7 @@
   </header>
 
   <form id="secretForm" novalidate>
+    <div class="sheet-body" id="sheetBody">
     <div id="nameRow">
       <label class="field">Name
         <input id="fName" name="name" placeholder="STRIPE_API_KEY" autocomplete="off" spellcheck="false" autocapitalize="characters">
@@ -733,9 +802,20 @@
       <label class="field">Paste anything
         <textarea id="pasteData" spellcheck="false" autocomplete="off" placeholder="AWS_ACCESS_KEY_ID=AKIA…&#10;export STRIPE_API_KEY=sk_live_…&#10;modal token set --token-id … --token-secret … --profile=you"></textarea>
       </label>
-      <label class="field">Or load a file <input id="pasteFile" name="file" type="file" accept=".env,.txt,text/plain"></label>
-      <p class="hint">Detects .env lines and setup commands in one pass, groups related values, and stores nothing until you confirm. Bare emails, URLs and tokens get suggested names you can edit. Sensitive values are masked until revealed; the preview clears when the sheet closes.</p>
+      <div class="field">
+        <span>Or load a file</span>
+        <div class="file-drop" id="pasteDrop">
+          <button class="btn small" id="pasteFileBtn" type="button">Choose file</button>
+          <input id="pasteFile" name="file" type="file" accept=".env,.txt,text/plain" class="sr-only" tabindex="-1">
+          <span class="file-name" id="pasteFileName">No file selected</span>
+          <button class="btn small ghost file-clear" id="pasteFileClear" type="button" hidden>Clear</button>
+        </div>
+        <small>.env, .txt or plain text. You can also drop it here.</small>
+      </div>
+      <p class="hint">Parsed on this device, never sent to a model. Supports JSON, YAML, .env, setup commands, and labeled text. Review each name, value, group, and type before saving. Unknown values default to Secret.</p>
       <button class="btn" id="detectBtn" type="button">Detect</button>
+      <div id="detectWarnings" role="status"></div>
+      <p class="hint" id="reviewStatus" role="status" hidden></p>
       <div class="import-options" id="detectResults" aria-live="polite"></div>
     </section>
 
@@ -744,7 +824,7 @@
     </section>
 
     <p class="form-error" id="formError" role="alert" hidden></p>
-
+    </div>
     <footer class="sheet-foot">
       <label class="scope-pick" id="scopeRow" hidden>
         <span>Stored in</span>
@@ -775,6 +855,7 @@
 
   const $ = (id) => document.getElementById(id);
   const views = {
+    recovery: ["Recovery", "Local encrypted backups. No cloud storage."],
     secrets: ["Secrets", "One vault, available across your agents."],
     agents: ["Agents", "Connect the MCP server to the harnesses on this Mac."],
     scan: ["Leak scan", "Find plaintext copies of the secrets in your vault."],
@@ -855,14 +936,17 @@
     return data;
   }
 
-  function toast(message) {
+  function toast(message, action = null) {
     const node = el("div", { class: "toast", text: message });
+    if (action) node.append(el("button", {class: "btn small ghost", type: "button", text: "Undo", onclick: async () => {
+      try { await action(); node.remove(); } catch (err) { toast(err.message); }
+    }}));
     $("toasts").append(node);
     requestAnimationFrame(() => node.classList.add("in"));
     setTimeout(() => {
       node.classList.remove("in");
       setTimeout(() => node.remove(), 200);
-    }, 2600);
+    }, action ? 10000 : 2600);
   }
 
   function shortPath(path) {
@@ -953,7 +1037,7 @@
     const list = $("secretList");
     const empty = $("secretsEmpty");
     const needle = state.filter.trim().toLowerCase();
-    const secrets = (state.data?.secrets || []).filter((s) => s.name.toLowerCase().includes(needle));
+    const secrets = (state.data?.secrets || []).filter((s) => [s.name, s.service || "", s.scope, s.sensitive ? "secret" : "config", s.status].some(value => value.toLowerCase().includes(needle)));
 
     list.textContent = "";
     if (!secrets.length) {
@@ -999,6 +1083,14 @@
           add.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
           add.addEventListener("click", () => openAddSheet(key));
           head.append(add);
+          const scopes = Array.from(new Set(members.map(s => s.scope)));
+          for (const scope of scopes) {
+            head.append(el("button", {class: "btn small ghost", type: "button", text: scopes.length > 1 ? "Manage " + scope : "Manage group", onclick: () => {
+              openSheet("service", {name: key, service: key, scope});
+              state.sheet.members = (state.data?.secrets || []).filter(s => s.service === key && s.scope === scope).map(s => s.name);
+              $("sheetSub").textContent = "Rename this group for " + state.sheet.members.length + " " + scope + " entries, or clear the field to ungroup them. Values and references stay unchanged.";
+            }}));
+          }
         }
         section.append(head);
       }
@@ -1356,6 +1448,40 @@
     });
   }
 
+  function setupFilePicker(input, button, nameEl, clear, drop) {
+    const describe = () => {
+      const file = input.files[0];
+      if (!file) {
+        nameEl.textContent = "No file selected";
+        clear.hidden = true;
+        return;
+      }
+      const size = file.size < 1024 ? file.size + " B"
+        : file.size < 1048576 ? Math.round(file.size / 1024) + " KB"
+        : (file.size / 1048576).toFixed(1) + " MB";
+      nameEl.textContent = file.name + " · " + size;
+      clear.hidden = false;
+    };
+    describe();
+    button.addEventListener("click", () => input.click());
+    input.addEventListener("change", describe);
+    clear.addEventListener("click", () => {
+      input.value = "";
+      input.dispatchEvent(new Event("change"));
+      describe();
+    });
+    drop.addEventListener("dragover", (event) => { event.preventDefault(); drop.classList.add("dragover"); });
+    drop.addEventListener("dragleave", () => drop.classList.remove("dragover"));
+    drop.addEventListener("drop", (event) => {
+      event.preventDefault();
+      drop.classList.remove("dragover");
+      if (event.dataTransfer && event.dataTransfer.files.length) {
+        input.files = event.dataTransfer.files;
+        input.dispatchEvent(new Event("change"));
+      }
+    });
+  }
+
   function openAddSheet(group = "") {
     openSheet("add");
     if (group) $("fGroupAdd").value = group;
@@ -1367,79 +1493,128 @@
     return value.slice(0, 4) + "…" + value.slice(-4);
   }
 
-  function renderDetections(suggestions) {
+  let detectVersion = 0;
+  let reviewVersion = 0;
+  let reviewTimer;
+  let reviewedSelection = "";
+
+  function importEntries() {
+    return Array.from($("detectResults").querySelectorAll(".review-entry"))
+      .filter(row => row.querySelector(".review-select").checked)
+      .map(row => ({
+        id: row.dataset.id,
+        name: row.querySelector(".review-name").value.trim(),
+        value: row.querySelector(".review-value").value,
+        service: row.querySelector(".review-service").value.trim(),
+        sensitive: row.querySelector(".review-kind").value === "secret",
+      }));
+  }
+
+  function resetReview() {
+    detectVersion++;
+    reviewVersion++;
+    clearTimeout(reviewTimer);
+    reviewedSelection = "";
+    $("detectResults").textContent = "";
+    $("detectWarnings").textContent = "";
+    $("reviewStatus").hidden = true;
+    $("saveBtn").disabled = true;
+  }
+
+  function renderDetections(suggestions, warnings = []) {
     const list = $("detectResults");
     list.textContent = "";
+    $("detectWarnings").textContent = "";
+    for (const warning of warnings) {
+      $("detectWarnings").append(el("p", {class: "review-warning", text: "Line " + warning.line + ": " + warning.message}));
+    }
     if (!suggestions.length) {
       list.append(el("p", {
         class: "hint detect-empty",
-        text: "No credentials detected. Try a supported command (modal token set, aws configure set) or KEY=value lines.",
+        text: "No values recognized. Try labeled text (email: you@example.org), JSON, YAML, or KEY=value. The text was not executed.",
       }));
       $("saveBtn").disabled = true;
       return;
     }
+    const toolbar = el("div", {class: "review-toolbar"});
+    for (const [label, select] of [["Select new", true], ["Select none", false]]) {
+      toolbar.append(el("button", {type: "button", class: "btn small ghost", text: label, onclick: () => {
+        list.querySelectorAll(".review-entry").forEach(row => { row.querySelector(".review-select").checked = select && row.dataset.conflict === "new"; });
+        updateDetectSave();
+      }}));
+    }
+    list.append(toolbar);
     for (const suggestion of suggestions) {
-      const input = el("input", {
-        type: "checkbox",
-        value: suggestion.name,
-        "aria-label": "Select " + suggestion.name,
+      const row = el("section", {class: "review-entry", "data-id": suggestion.id, "data-conflict": suggestion.conflict});
+      const selected = el("input", {type: "checkbox", class: "review-select", "aria-label": "Import " + suggestion.name});
+      selected.checked = suggestion.conflict === "new";
+      const origin = suggestion.source + (suggestion.line ? " · line " + suggestion.line : "");
+      const status = el("span", {class: "review-conflict"});
+      row.append(el("div", {class: "review-entry-head"}, [selected, el("p", {class: "hint", text: origin}), status]));
+      const field = (label, input, className = "") => el("label", {class: "field " + className}, [document.createTextNode(label), input]);
+      const name = el("input", {class: "review-name", value: suggestion.name, autocomplete: "off", spellcheck: "false"});
+      const service = el("input", {class: "review-service", value: suggestion.service || "", placeholder: "No group", autocomplete: "off", spellcheck: "false"});
+      const value = el("input", {class: "review-value", value: suggestion.value, type: suggestion.sensitive ? "password" : "text", autocomplete: "new-password", spellcheck: "false"});
+      const reveal = el("button", {type: "button", class: "btn small ghost", text: "Show", "aria-label": "Show pasted value for " + suggestion.name, "aria-pressed": "false"});
+      reveal.addEventListener("click", () => {
+        const show = value.type === "password";
+        value.type = show ? "text" : "password";
+        reveal.textContent = show ? "Hide" : "Show";
+        reveal.setAttribute("aria-pressed", String(show));
       });
-      input.checked = !suggestion.existing;
-      input.disabled = !!suggestion.existing;
-      const valueEl = el("code", {
-        class: "detect-value",
-        text: suggestion.sensitive ? maskValue(suggestion.value) : suggestion.value,
-      });
-      let reveal = null;
-      if (suggestion.sensitive) {
-        reveal = el("button", {
-          class: "detect-reveal", type: "button",
-          "aria-label": "Show value", "aria-pressed": "false", title: "Show value",
-        });
-        reveal.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.6"/></svg>';
-        reveal.addEventListener("click", () => {
-          const shown = reveal.getAttribute("aria-pressed") === "true";
-          valueEl.textContent = shown ? maskValue(suggestion.value) : suggestion.value;
-          reveal.setAttribute("aria-pressed", String(!shown));
-          reveal.setAttribute("aria-label", shown ? "Show value" : "Hide value");
-          reveal.title = shown ? "Show value" : "Hide value";
-        });
-      }
-      const chips = [
-        el("span", { class: "chip", text: suggestion.sensitive ? "secret" : "config" }),
-        suggestion.service
-          ? el("span", { class: "chip", text: suggestion.service + (suggestion.newGroup ? " · new" : "") })
-          : null,
-        suggestion.existing ? el("span", { class: "chip warn", text: "exists" }) : null,
-      ].filter(Boolean);
-      const nameInput = el("input", {
-        class: "detect-name-input",
-        type: "text",
-        value: suggestion.name,
-        spellcheck: "false",
-        autocomplete: "off",
-        "aria-label": "Name for the detected value",
-      });
-      nameInput.disabled = !!suggestion.existing;
-      list.append(el("div", { class: "detect-row" + (suggestion.existing ? " existing" : ""), "data-name": suggestion.name }, [
-        input,
-        el("span", { class: "detect-main" }, [
-          nameInput,
-          el("span", { class: "detect-meta" }, [
-            valueEl,
-            reveal,
-            el("span", { class: "detect-source", text: suggestion.source }),
-          ]),
-        ]),
-        el("span", { class: "detect-chips" }, chips),
-      ]));
+      const kind = el("select", {class: "review-kind"}, [el("option", {value: "secret", text: "Secret — redact output"}), el("option", {value: "config", text: "Config — visible in output"})]);
+      kind.value = suggestion.sensitive ? "secret" : "config";
+      const valueField = field("Pasted value", value, "review-value-field");
+      valueField.append(reveal);
+      row.append(el("div", {class: "review-fields"}, [field("Name", name), field("Group (existing or new)", service), valueField, field("Type", kind)]));
+      row.append(el("p", {class: "hint", text: suggestion.reason}));
+      status.dataset.status = suggestion.conflict;
+      status.textContent = conflictText(suggestion.conflict);
+      kind.addEventListener("change", () => { value.type = kind.value === "secret" ? "password" : "text"; reveal.textContent = value.type === "password" ? "Show" : "Hide"; });
+      row.addEventListener("input", event => { if (event.target !== selected) selected.checked = true; updateDetectSave(); });
+      list.append(row);
     }
     updateDetectSave();
   }
 
+  function conflictText(status) {
+    return ({new: "New entry", same: "Already saved · unchanged", different: "Different value · rename to keep both", unavailable: "Stored value unavailable"})[status] || "Checking…";
+  }
+
   function updateDetectSave() {
-    const selected = $("detectResults").querySelectorAll("input:checked:not(:disabled)").length;
-    $("saveBtn").disabled = state.busy || selected === 0;
+    const entries = importEntries();
+    if (entries.length && reviewedSelection === JSON.stringify(entries)) {
+      $("saveBtn").disabled = state.busy;
+      return;
+    }
+    const version = ++reviewVersion;
+    clearTimeout(reviewTimer);
+    reviewedSelection = "";
+    $("saveBtn").disabled = true;
+    $("reviewStatus").hidden = false;
+    if (!entries.length) { $("reviewStatus").textContent = "Select entries to import. Existing entries stay untouched."; return; }
+    $("reviewStatus").textContent = "Checking selected entries against your local vault…";
+    reviewTimer = setTimeout(async () => {
+      try {
+        const result = await api("/api/review-detected", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({text: $("pasteData").value, entries, scope: "global"})});
+        if (version !== reviewVersion || state.sheet?.mode !== "import") return;
+        let blocked = false;
+        for (let i = 0; i < result.entries.length; i++) {
+          const item = result.entries[i];
+          const row = $("detectResults").querySelector('[data-id="' + entries[i].id + '"]');
+          row.dataset.conflict = item.conflict;
+          const status = row.querySelector(".review-conflict");
+          status.dataset.status = item.conflict;
+          status.textContent = conflictText(item.conflict);
+          blocked ||= item.conflict === "different" || item.conflict === "unavailable";
+        }
+        $("reviewStatus").textContent = blocked ? "Resolve the highlighted conflicts or uncheck those entries. No stored value will be replaced." : entries.length + " selected. Existing equal values and their metadata will stay unchanged.";
+        if (!blocked) reviewedSelection = JSON.stringify(entries);
+        $("saveBtn").disabled = blocked || state.busy;
+      } catch (err) {
+        if (version === reviewVersion) $("reviewStatus").textContent = err.message;
+      }
+    }, 180);
   }
 
   function setKind(kind) {
@@ -1486,7 +1661,7 @@
         block.append(copy);
         list.append(block);
       }
-      if (state.sheet?.mode === "config") $("secretForm").scrollTop = 0;
+      if (state.sheet?.mode === "config") $("sheetBody").scrollTop = 0;
     } catch (err) {
       list.textContent = "Could not load snippets: " + err.message;
     }
@@ -1496,15 +1671,17 @@
     if (mode !== "config" && (!state.data?.initialized || state.data.vaultError)) { toast("Create or unlock the vault first."); return; }
     if (state.busy) return;
     state.opener = document.activeElement;
-    state.sheet = { mode, name: secret?.name || null, scope: secret?.scope || null };
+    state.sheet = { mode, name: secret?.name || null, scope: secret?.scope || null, originalService: secret?.service || "" };
     const sheet = state.sheet;
+    $("sheet").dataset.mode = mode;
     const bulk = mode === "import";
     const config = mode === "config";
-    const group = mode === "group";
+    const group = mode === "group" || mode === "service";
     $("bulkFields").hidden = !bulk;
     $("configFields").hidden = !config;
     $("modeSeg").parentElement.hidden = bulk || config || group;
     $("sheetTitle").textContent = bulk ? "Import secrets" : config ? "Manual setup" : group ? "Move to group" : mode === "add" ? "Add secret" : "Replace stored value";
+    if (mode === "service") $("sheetTitle").textContent = "Manage group";
     $("sheetSub").textContent = mode === "add"
       ? "Stored once in the vault. Agents receive it at runtime — never in their context."
       : bulk ? "Paste anything — .env lines, setup commands, or a mix. Review before storing."
@@ -1539,11 +1716,13 @@
     setScope("global");
     $("pasteData").value = "";
     $("pasteFile").value = "";
-    $("detectResults").textContent = "";
+    $("pasteFile").dispatchEvent(new Event("change"));
+    resetReview();
+    if (!bulk) $("saveBtn").disabled = false;
     $("discardBtn").hidden = true;
     document.querySelector(".app").inert = true;
 
-    $("secretForm").scrollTop = 0;
+    $("sheetBody").scrollTop = 0;
     $("scrim").hidden = false;
     $("sheet").hidden = false;
     requestAnimationFrame(() => {
@@ -1570,7 +1749,8 @@
     }
     state.sheet = null;
     $("fValue").value = $("fName").value = $("pasteData").value = $("pasteFile").value = $("fGroup").value = "";
-    $("detectResults").textContent = "";
+    $("pasteFile").dispatchEvent(new Event("change"));
+    resetReview();
     document.querySelector(".app").inert = false;
     state.opener?.focus();
     $("scrim").classList.remove("open");
@@ -1587,35 +1767,13 @@
     error.hidden = true;
 
     if (state.sheet.mode === "import") {
-      const rows = Array.from($("detectResults").querySelectorAll(".detect-row"));
-      const selected = rows.filter((row) => row.querySelector('input[type="checkbox"]:checked'));
-      if (!selected.length) {
+      const entries = importEntries();
+      if (!entries.length) {
         error.textContent = "Detect the text and select at least one entry.";
         error.hidden = false;
         return;
       }
-      const names = [];
-      const renames = {};
-      const seen = new Set();
-      for (const row of selected) {
-        const original = row.dataset.name;
-        const edited = row.querySelector(".detect-name-input").value.trim();
-        if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(edited)) {
-          error.textContent = "Names use letters, digits and underscore, starting with a letter or underscore.";
-          error.hidden = false;
-          row.querySelector(".detect-name-input").focus();
-          return;
-        }
-        if (seen.has(edited)) {
-          error.textContent = "Names must be unique.";
-          error.hidden = false;
-          row.querySelector(".detect-name-input").focus();
-          return;
-        }
-        seen.add(edited);
-        names.push(original);
-        if (edited !== original) renames[original] = edited;
-      }
+      if (reviewedSelection !== JSON.stringify(entries)) { updateDetectSave(); return; }
       state.busy = true;
       $("saveBtn").disabled = true;
       $("saveBtn").textContent = "Storing…";
@@ -1623,11 +1781,11 @@
         const result = await api("/api/add-detected", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: $("pasteData").value, names, renames, scope: "global" }),
+          body: JSON.stringify({ text: $("pasteData").value, entries, scope: "global" }),
         });
         state.busy = false;
         closeSheet(true);
-        toast(result.count + (result.count === 1 ? " entry added" : " entries added"));
+        toast(result.count + " entries processed; existing values kept");
         await loadState();
       } catch (err) {
         state.busy = false;
@@ -1639,7 +1797,7 @@
       return;
     }
 
-    if (state.sheet.mode === "group") {
+    if (state.sheet.mode === "group" || state.sheet.mode === "service") {
       const service = $("fGroup").value.trim();
       if (service && !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,31}$/.test(service)) {
         error.textContent = "Group names use letters, digits, dot, dash, underscore (max 32).";
@@ -1649,9 +1807,17 @@
       }
       state.busy = true; $("saveBtn").disabled = true; $("saveBtn").textContent = "Saving…";
       try {
-        await api("/api/group", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({name: state.sheet.name, scope: state.sheet.scope, service})});
+        const change = {from: state.sheet.originalService, to: service, scope: state.sheet.scope, names: state.sheet.members};
+        const entireGroup = state.sheet.mode === "service";
+        if (entireGroup) {
+          const result = await api("/api/service", {method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(change)});
+          change.names = result.names;
+        } else await api("/api/group", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({name: state.sheet.name, scope: state.sheet.scope, service})});
         state.busy = false; closeSheet(true);
-        toast(service ? "Moved to " + service : "Ungrouped");
+        toast(service ? "Moved to " + service : "Ungrouped", entireGroup ? async () => {
+          await api("/api/service", {method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({...change, from: change.to, to: change.from})});
+          await loadState();
+        } : null);
         await loadState();
       } catch (err) { state.busy = false; error.textContent = err.message; error.hidden = false; $("saveBtn").disabled = false; $("saveBtn").textContent = "Save"; }
       return;
@@ -1727,22 +1893,22 @@
   });
 
   $("pasteData").addEventListener("input", () => {
-    $("detectResults").textContent = "";
-    $("saveBtn").disabled = true;
+    resetReview();
   });
   $("pasteFile").addEventListener("change", async (event) => {
     const file = event.target.files[0];
-    if (!file) return;
-    if (file.size > 500000) { toast("Choose a file smaller than 500 KB."); return; }
+    if (!file) { resetReview(); return; }
+    if (file.size > 128 * 1024) { toast("Choose a file smaller than 128 KiB."); return; }
     $("pasteData").value = await file.text();
-    $("detectResults").textContent = "";
-    $("saveBtn").disabled = true;
+    resetReview();
   });
   $("detectResults").addEventListener("change", updateDetectSave);
   $("detectBtn").addEventListener("click", async (event) => {
     const text = $("pasteData").value;
     if (!text.trim()) { toast("Paste some text first."); return; }
     const btn = event.currentTarget;
+    const version = ++detectVersion;
+    const sheet = state.sheet;
     btn.disabled = true;
     btn.textContent = "Detecting…";
     $("formError").hidden = true;
@@ -1752,14 +1918,111 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text }),
       });
-      renderDetections(result.suggestions || []);
+      if (version === detectVersion && state.sheet === sheet && $("pasteData").value === text) renderDetections(result.suggestions || [], result.warnings || []);
     } catch (err) {
-      $("formError").textContent = err.message;
-      $("formError").hidden = false;
-      $("saveBtn").disabled = true;
+      if (version === detectVersion && state.sheet === sheet) {
+        $("formError").textContent = err.message;
+        $("formError").hidden = false;
+        $("saveBtn").disabled = true;
+      }
     }
     btn.disabled = false;
     btn.textContent = "Detect";
+  });
+
+  $("backupForm").addEventListener("submit", async event => {
+    event.preventDefault();
+    const password = $("backupPassword").value;
+    if (password.length < 12 || password !== $("backupConfirm").value) {
+      $("backupStatus").textContent = "Use at least 12 characters and enter the same passphrase twice.";
+      return;
+    }
+    const button = $("backupBtn");
+    button.disabled = true;
+    $("backupStatus").textContent = "Encrypting on this device…";
+    try {
+      const res = await fetch("/api/recovery/export", {method: "POST", credentials: "same-origin", headers: {"Content-Type": "application/json"}, body: JSON.stringify({passphrase: password})});
+      if (!res.ok) throw new Error((await res.json()).error || "Could not create archive.");
+      const data = await res.blob();
+      const url = URL.createObjectURL(data);
+      const link = el("a", {href: url, download: "sm-recovery.age"});
+      document.body.append(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      $("backupPassword").value = $("backupConfirm").value = "";
+      $("backupStatus").textContent = "Encrypted archive ready to save. Verify the saved file below; keep its passphrase separately.";
+      await loadState();
+    } catch (err) { $("backupStatus").textContent = err.message; }
+    finally { button.disabled = false; }
+  });
+
+  let verifiedArchive = null;
+  let recoveryVersion = 0;
+  $("restoreFile").addEventListener("change", () => {
+    verifiedArchive = null;
+    recoveryVersion++;
+    $("restoreBtn").hidden = true;
+    $("restoreStatus").textContent = "";
+  });
+  $("restorePassword").addEventListener("input", () => {
+    verifiedArchive = null;
+    recoveryVersion++;
+    $("restoreBtn").hidden = true;
+    $("restoreStatus").textContent = "";
+  });
+
+  async function recoveryRequestBody(confirm = false) {
+    const file = $("restoreFile").files[0];
+    const passphrase = $("restorePassword").value;
+    if (!file || file.size > 32 * 1024 * 1024) throw new Error("Choose an encrypted archive up to 32 MiB.");
+    const data = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result).split(",")[1]);
+      reader.onerror = () => reject(new Error("Could not read the archive."));
+      reader.readAsDataURL(file);
+    });
+    return {data, passphrase, confirm};
+  }
+
+  $("restoreForm").addEventListener("submit", async event => {
+    event.preventDefault();
+    const version = ++recoveryVersion;
+    verifiedArchive = null;
+    $("restoreBtn").hidden = true;
+    $("verifyBackupBtn").disabled = true;
+    $("restoreStatus").textContent = "Decrypting and verifying on this device…";
+    try {
+      const body = await recoveryRequestBody();
+      const result = await api("/api/recovery/inspect", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+      if (version !== recoveryVersion) return;
+      $("restoreStatus").textContent = "Verified: " + result.summary.entries + " global entries, " + result.summary.storedValues + " stored values. " + (result.canRestore ? "Ready to restore into this empty vault. Project manifests are restored separately." : "This vault already exists; verification changed nothing. Restore on an empty destination instead.");
+      verifiedArchive = result.canRestore ? {file: $("restoreFile").files[0], version} : null;
+      $("restoreBtn").hidden = !result.canRestore;
+      if (!result.canRestore) $("restorePassword").value = "";
+    } catch (err) { if (version === recoveryVersion) $("restoreStatus").textContent = err.message; }
+    finally { $("verifyBackupBtn").disabled = false; }
+  });
+
+  $("restoreBtn").addEventListener("click", async () => {
+    if (!verifiedArchive || verifiedArchive.version !== recoveryVersion) return;
+    const version = recoveryVersion;
+    $("restoreBtn").disabled = true;
+    $("restoreFile").disabled = $("restorePassword").disabled = $("verifyBackupBtn").disabled = true;
+    $("restoreStatus").textContent = "Restoring encrypted values to the local vault…";
+    try {
+      const body = await recoveryRequestBody(true);
+      if (version !== recoveryVersion) return;
+      const result = await api("/api/recovery/restore", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+      const message = result.warning || "Restore complete. Values are encrypted with this device's identity. Restore project manifests from their repositories separately.";
+      $("restorePassword").value = $("restoreFile").value = "";
+      $("restoreFile").dispatchEvent(new Event("change"));
+      verifiedArchive = null;
+      $("restoreBtn").hidden = true;
+      $("restoreStatus").textContent = message;
+      await loadState();
+    } catch (err) { $("restoreStatus").textContent = err.message; }
+    finally { $("restoreBtn").disabled = false; $("restoreFile").disabled = $("restorePassword").disabled = $("verifyBackupBtn").disabled = false; }
   });
   $("initializeBtn").addEventListener("click", async event => {
     const btn = event.currentTarget; btn.disabled = true; btn.textContent = "Creating vault…";
@@ -1788,6 +2051,8 @@
     btn.addEventListener("click", () => setView(btn.dataset.view));
   });
 
+  setupFilePicker($("pasteFile"), $("pasteFileBtn"), $("pasteFileName"), $("pasteFileClear"), $("pasteDrop"));
+  setupFilePicker($("restoreFile"), $("restoreFileBtn"), $("restoreFileName"), $("restoreFileClear"), $("restoreDrop"));
   $("addBtn").addEventListener("click", () => openAddSheet());
   $("importBtn").addEventListener("click", () => openSheet("import"));
   $("emptyAdd").addEventListener("click", () => openAddSheet());

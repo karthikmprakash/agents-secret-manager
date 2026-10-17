@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"sort"
 	"strings"
@@ -331,6 +332,11 @@ func (m *Manifest) Services() []string {
 // SetService updates one entry's service field in place, preserving the rest
 // of the file. An empty service removes the field (ungrouped).
 func SetService(path, name, service string) error {
+	return SetServices(path, map[string]string{name: service})
+}
+
+// SetServices applies a whole group's label changes in one validated write.
+func SetServices(path string, services map[string]string) error {
 	unlock, err := safeio.Lock(path + ".lock")
 	if err != nil {
 		return err
@@ -342,6 +348,55 @@ func SetService(path, name, service string) error {
 		return err
 	}
 	text := string(data)
+	var expected Manifest
+	if _, err := toml.Decode(text, &expected); err != nil {
+		return fmt.Errorf("manifest is invalid; nothing changed")
+	}
+	if err := expected.Validate(); err != nil {
+		return err
+	}
+	for name, service := range services {
+		entry, ok := expected.Secrets[name]
+		if !ok {
+			return fmt.Errorf("entry is not declared")
+		}
+		entry.Service = service
+		expected.Secrets[name] = entry
+	}
+	var errEdit error
+	names := make([]string, 0, len(services))
+	for name := range services {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		text, errEdit = setServiceText(text, name, services[name])
+		if errEdit != nil {
+			return errEdit
+		}
+	}
+	var check Manifest
+	if _, err := toml.Decode(text, &check); err != nil {
+		return fmt.Errorf("group edit would produce invalid TOML; manifest unchanged")
+	}
+	if err := check.Validate(); err != nil {
+		return err
+	}
+	if !reflect.DeepEqual(expected, check) {
+		return fmt.Errorf("group edit would change other manifest data; nothing changed")
+	}
+	for name, service := range services {
+		if check.Secrets[name].Service != service {
+			return fmt.Errorf("group edit did not apply cleanly")
+		}
+	}
+	if bytes.Equal(data, []byte(text)) {
+		return nil
+	}
+	return safeio.Write(path, []byte(text), 0o600)
+}
+
+func setServiceText(text, name, service string) (string, error) {
 	header := "[secrets." + name + "]"
 	lines := strings.Split(text, "\n")
 	start := -1
@@ -352,7 +407,7 @@ func SetService(path, name, service string) error {
 		}
 	}
 	if start == -1 {
-		return fmt.Errorf("%s: no %s entry", path, header)
+		return "", fmt.Errorf("no %s entry; use a plain [secrets.NAME] table for group editing", header)
 	}
 	end := len(lines)
 	for i := start + 1; i < len(lines); i++ {
@@ -382,20 +437,7 @@ func SetService(path, name, service string) error {
 	out = append(out, lines[end:]...)
 	updated := strings.Join(out, "\n")
 
-	var check Manifest
-	if _, err := toml.Decode(updated, &check); err != nil {
-		return fmt.Errorf("%s: change would produce invalid TOML; manifest unchanged", path)
-	}
-	if err := check.Validate(); err != nil {
-		return err
-	}
-	if check.Secrets[name].Service != service {
-		return fmt.Errorf("%s: grouping change did not apply cleanly", path)
-	}
-	if bytes.Equal(data, []byte(updated)) {
-		return nil
-	}
-	return safeio.Write(path, []byte(updated), 0o600)
+	return updated, nil
 }
 
 // AppendSecret appends a [secrets.NAME] block to the manifest file, preserving

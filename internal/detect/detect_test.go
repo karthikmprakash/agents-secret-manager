@@ -14,7 +14,12 @@ modal profile activate karthik
 	want := []Suggestion{
 		{Name: "MODAL_TOKEN_ID", Value: "ak-EXAMPLEID123", Service: "modal", Sensitive: true, Source: "modal token set"},
 		{Name: "MODAL_TOKEN_SECRET", Value: "as-EXAMPLESECRET456", Service: "modal", Sensitive: true, Source: "modal token set"},
-		{Name: "MODAL_PROFILE", Value: "karthik", Service: "modal", Sensitive: false, Source: "modal profile activate"},
+		{Name: "MODAL_PROFILE", Value: "karthik", Service: "modal", Sensitive: false, Source: "modal token set"},
+	}
+	for i := range got {
+		got[i].ID = ""
+		got[i].Line = 0
+		got[i].Reason = ""
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got  %+v\nwant %+v", got, want)
@@ -73,7 +78,7 @@ DATABASE_URL=postgres://localhost/app
 	}
 }
 
-func TestParseSkipsPlaceholdersAndDeduplicates(t *testing.T) {
+func TestParseSkipsPlaceholdersAndPreservesConflicts(t *testing.T) {
 	text := `
 API_KEY=<your-key>
 SECOND_KEY=changeme
@@ -81,17 +86,17 @@ MODAL_TOKEN_ID=ak-1
 MODAL_TOKEN_ID=ak-2
 `
 	got := Parse(text)
-	if len(got) != 1 {
-		t.Fatalf("want 1 suggestion, got %+v", got)
+	if len(got) != 2 {
+		t.Fatalf("want both differing values, got %+v", got)
 	}
-	if got[0].Name != "MODAL_TOKEN_ID" || got[0].Value != "ak-2" {
-		t.Fatalf("dedupe wrong: %+v", got[0])
+	if got[0].Value != "ak-1" || got[1].Value != "ak-2" || got[1].Name != "MODAL_TOKEN_ID_2" {
+		t.Fatalf("conflict handling wrong: %+v", got)
 	}
 }
 
 func TestParseBareValues(t *testing.T) {
 	text := `
-mkarthikprakash919@gmail.com
+person@example.org
 https://api.example.com/v1
 sk-EXAMPLETOKEN1234567890
 just some prose that is not a value
@@ -100,7 +105,7 @@ just some prose that is not a value
 	if len(got) != 3 {
 		t.Fatalf("want 3 suggestions, got %+v", got)
 	}
-	if got[0].Name != "EMAIL" || got[0].Sensitive || got[0].Value != "mkarthikprakash919@gmail.com" {
+	if got[0].Name != "EMAIL" || got[0].Sensitive || got[0].Value != "person@example.org" {
 		t.Errorf("email = %+v", got[0])
 	}
 	if got[1].Name != "BASE_URL" || got[1].Sensitive {
@@ -111,6 +116,39 @@ just some prose that is not a value
 	}
 	if parseBareValueCount("a short phrase with spaces") != 0 {
 		t.Error("prose should not be detected")
+	}
+}
+
+func TestReviewSafetyAndFormats(t *testing.T) {
+	t.Run("natural language and duplicates", func(t *testing.T) {
+		r := Analyze("my email address is first@example.org\nsecond@example.org\nfirst@example.org\nunrecognized sentence")
+		if len(r.Suggestions) != 2 || r.Suggestions[1].Name != "EMAIL_2" || len(r.Warnings) == 0 {
+			t.Fatalf("report = %+v", r)
+		}
+		if r.Suggestions[0].ID == r.Suggestions[1].ID {
+			t.Fatal("IDs must be unique")
+		}
+	})
+	for _, text := range []string{`{"openai":{"apiKey":"dummy-secret","model":"small-model"}}`, "openai:\n  api_key: dummy-secret\n  model: small-model"} {
+		got := Parse(text)
+		if len(got) != 2 || got[0].Name != "OPENAI_API_KEY" || !got[0].Sensitive || got[1].Sensitive {
+			t.Errorf("structured input: %+v", got)
+		}
+	}
+	for _, value := range []string{"https://user:password@example.org", "https://example.org?token=credential", "postgres://user:password@localhost/db", "an-unknown-string"} {
+		if !sensitive("SETTING", value) {
+			t.Errorf("unsafe config default for test value")
+		}
+	}
+	got := Parse(`curl -H 'Authorization: Bearer dummy-token' -H 'x-api-key: another-key' https://example.org`)
+	if len(got) != 3 || !got[0].Sensitive || !got[1].Sensitive || got[2].Sensitive {
+		t.Fatalf("curl = %+v", got)
+	}
+	if got := Parse(`{"KEY":"first","KEY":"second"}`); len(got) != 2 || got[1].Name != "KEY_2" {
+		t.Fatal("duplicate structured values were lost")
+	}
+	if got := Parse(`["first@example.org","second@example.org"]`); len(got) != 2 {
+		t.Fatal("bare structured values were lost")
 	}
 }
 

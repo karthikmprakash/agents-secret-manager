@@ -157,6 +157,17 @@ output and `doctor` does not report them as leaks. In the UI, the Secret /
 Plain config choice sits directly under the Value field, and groups are managed
 from the Secrets list.
 
+Each group has **Manage group** for renaming or ungrouping its entries, scoped
+to the global or project manifest. Undo restores only the affected labels and
+refuses to undo over later label changes. Values and references are untouched.
+Search also matches service, scope, status, and Secret/Config type.
+
+```sh
+sm service stripe --rename payments
+sm service payments --ungroup
+sm service stripe --rename payments --scope project
+```
+
 ## Import existing secrets
 
 ```sh
@@ -172,9 +183,10 @@ the vault are separate files, not one crash-atomic transaction.
 
 ### Paste anything
 
-The UI's **Import secrets** sheet takes plain text: `.env` lines, setup
-commands, or a mix of both. It suggests the entry names, whether each is a
-secret or plain config, and which service group to use:
+The UI's **Import secrets** sheet parses locally: `.env` lines, JSON/YAML
+objects, supported setup commands, `curl` headers, and labeled text such as
+“my email address is person@example.org”. No model or network call is involved.
+It suggests names, Secret/Config type, and service groups:
 
 ```text
 STRIPE_BASE_URL=https://api.stripe.com
@@ -189,13 +201,46 @@ by their prefix. Bare values are recognized too: an email suggests `EMAIL`, a
 URL suggests `BASE_URL`, and a token-like string suggests `API_TOKEN` — rename
 any suggestion inline before storing. Missing groups are created on save.
 
-Supported today: `modal token set`, `modal profile activate`,
-`aws configure set`, and `KEY=value` / `export KEY=value` lines (a leading `$`
-or `sudo` is tolerated). The preview returns parsed values to this local UI so
-you can verify them: sensitive values are masked until you reveal them, config
-values are shown as-is. Values are never logged, the preview is cleared when the
-sheet closes, and stored state never exposes values. Entries that already exist
-are marked and skipped.
+The review workspace lets you edit **name, value, group, and type**. Different
+values with the same suggested name are retained as separate entries with
+unique names; identical name/value pairs coalesce. Unrecognized lines are
+reported, not silently executed or sent anywhere. Parsing is rule-based, not
+universal natural-language understanding: review the result before storing.
+
+Unknown values default to **Secret**. URLs with passwords, query parameters,
+or fragments are treated as sensitive, even if named `BASE_URL`. Config is only
+suggested for recognized plain configuration. You can override the classification.
+
+Sensitive values are hidden until revealed; config values are shown as-is.
+The pasted text and review are cleared when the sheet closes. Stored values
+never appear in `/api/state`. A local comparison shows **new**, **already saved
+(unchanged)**, or **different value**. Rename conflicting entries to keep both;
+imports never replace a differing stored value. Equal existing values keep their
+original metadata. Edits are checked again when you save.
+
+## Local encrypted recovery
+
+Use **Recovery** in the app, or:
+
+```sh
+sm backup --out sm-recovery.age
+sm restore --file sm-recovery.age --verify    # authenticate, change nothing
+sm restore --file sm-recovery.age             # empty destination vault only
+```
+
+The CLI prompts for a passphrase without echo; it never accepts it as a command
+argument. The archive is encrypted with age's passphrase encryption (scrypt),
+contains the global reference manifest and **all** vault values, and does not
+export the Keychain identity. Restoring re-encrypts with the destination Mac's
+identity, so it does not depend on the original Keychain. Archive files are local;
+there is no cloud backup or remote account.
+
+Keep the passphrase separately, verify the saved file, and keep project reference
+manifests in their repositories. Project manifests, agent configuration, and audit
+history are **not** included. Restore refuses any existing `vault.age` or
+`manifest.toml` (even empty), so on a new Mac restore **before** onboarding creates
+a vault. The format is bounded to 32 MiB. Two-file installation is not crash-atomic;
+keep the original archive until recovery is verified.
 
 ## Projects
 
@@ -252,16 +297,17 @@ best effort, not guaranteed secure erasure on APFS/SSDs or after `SIGKILL`.
 - **Test overrides** (`SM_CONFIG_DIR`, `SM_IDENTITY`) are for CI and throwaway
   runs. Never commit them, log them or put `SM_IDENTITY` in an agent config; it
   is stripped from task children.
-- **Recovery is unfinished.** Backing up `vault.age` alone is not enough without
-  the Keychain identity. Do not delete the identity. A portable encrypted
-  backup/restore flow, per-agent policy and notarized distribution are
-  prerequisites for broad distribution.
+- **Recovery** uses a separate passphrase-encrypted local archive. `vault.age`
+  by itself still depends on the Keychain identity. Keep a verified archive and
+  its passphrase separately; there is no password-reset service. Per-agent
+  enforcement and notarized distribution are still unfinished.
 
 ## Development
 
 ```sh
 make check                                            # gofmt, vet, test -race
 make build                                            # ~/.local/bin/sm
+python3 scripts/test-ui.py                             # isolated Playwright flows
 go test ./internal/redact -fuzz=FuzzStreaming -fuzztime=10s
 SM_UI_PREVIEW=1 SM_UI_PREVIEW_SEEDED=1 \
   go test -v ./internal/uiserver -run TestInteractivePreview -timeout 16m
@@ -278,6 +324,7 @@ reporting.
 - [Contributing](CONTRIBUTING.md) — setup, adapter checklist, style.
 - [Security policy](SECURITY.md) — reporting and threat model.
 - [Implementation review](docs/REVIEW.md) — fixes and remaining work.
+- [Local-only roadmap](docs/LOCAL-ROADMAP.md) — proposed features and constraints.
 - [Historical design](docs/DESIGN.md) — original v0.1 proposal (superseded).
 - [Changelog](CHANGELOG.md).
 

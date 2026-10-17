@@ -3,19 +3,33 @@
 package detect
 
 import (
+	"fmt"
+	"net/url"
 	"path/filepath"
 	"regexp"
 	"strings"
 )
 
-// Suggestion is one parsed entry. Values are used server-side only; API
-// responses omit them.
+// Suggestion is a proposed entry, never an instruction to execute anything.
 type Suggestion struct {
+	ID        string
 	Name      string
 	Value     string
 	Service   string
 	Sensitive bool
 	Source    string
+	Line      int
+	Reason    string
+}
+
+type Warning struct {
+	Line    int    `json:"line"`
+	Message string `json:"message"`
+}
+
+type Report struct {
+	Suggestions []Suggestion
+	Warnings    []Warning
 }
 
 var (
@@ -36,11 +50,18 @@ var (
 	}
 )
 
-// Parse returns unique suggestions in first-seen order. Later assignments to
-// the same name replace the value in place.
+// Parse is the convenience API; Analyze also reports unrecognized input.
 func Parse(text string) []Suggestion {
-	var out []Suggestion
-	index := map[string]int{}
+	return Analyze(text).Suggestions
+}
+
+// Analyze is entirely local. It never runs commands, expands variables, or
+// fetches URLs. Different values are preserved even when names collide.
+func Analyze(text string) Report {
+	report := Report{Suggestions: []Suggestion{}, Warnings: []Warning{}}
+	seen := map[string]bool{}
+	usedNames := map[string]bool{}
+	lineNumber := 0
 
 	add := func(s Suggestion) {
 		s.Name = strings.TrimSpace(s.Name)
@@ -51,19 +72,40 @@ func Parse(text string) []Suggestion {
 		if s.Service == "" {
 			s.Service = serviceFor(s.Name)
 		}
-		s.Sensitive = sensitive(s.Name, s.Value)
-		if i, ok := index[s.Name]; ok {
-			out[i] = s
+		if strings.HasPrefix(s.Value, "sm://") || strings.HasPrefix(s.Value, "vault://") {
 			return
 		}
-		index[s.Name] = len(out)
-		out = append(out, s)
+		identity := s.Name + "\x00" + s.Value + "\x00" + s.Service
+		if seen[identity] {
+			return
+		}
+		seen[identity] = true
+		s.Sensitive = sensitive(s.Name, s.Value)
+		base := s.Name
+		for n := 2; usedNames[s.Name]; n++ {
+			s.Name = fmt.Sprintf("%s_%d", base, n)
+		}
+		usedNames[s.Name] = true
+		s.ID = fmt.Sprintf("entry-%d", len(report.Suggestions)+1)
+		s.Line = lineNumber
+		if s.Sensitive {
+			s.Reason = "Secret by default; verify before changing to config."
+		} else {
+			s.Reason = "Recognized configuration; mark Secret if this value is private."
+		}
+		report.Suggestions = append(report.Suggestions, s)
 	}
 
 	text = strings.ReplaceAll(text, "\r\n", "\n")
-	for _, raw := range strings.Split(text, "\n") {
+	if parseStructured(text, add, &lineNumber) {
+		return report
+	}
+	text = strings.ReplaceAll(text, "\\\n", " ")
+	for i, raw := range strings.Split(text, "\n") {
+		lineNumber = i + 1
+		before := len(report.Suggestions)
 		line := strings.TrimSpace(raw)
-		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "//") {
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "//") || strings.HasPrefix(line, "```") {
 			continue
 		}
 		line = strings.TrimSpace(strings.TrimPrefix(line, "$"))
@@ -71,7 +113,7 @@ func Parse(text string) []Suggestion {
 			line = strings.TrimSpace(strings.TrimPrefix(line, "sudo "))
 		}
 		if m := envLine.FindStringSubmatch(line); m != nil {
-			add(Suggestion{Name: m[1], Value: m[2], Source: "environment"})
+			add(Suggestion{Name: m[1], Value: envValue(m[2]), Source: "environment"})
 			continue
 		}
 		tokens := tokenize(line)
@@ -85,10 +127,24 @@ func Parse(text string) []Suggestion {
 		case "aws":
 			parseAWS(tokens, add)
 			continue
+		case "curl":
+			parseCurl(tokens, add)
+			continue
 		}
-		parseBareValue(line, add)
+		if m := labeledValue.FindStringSubmatch(line); m != nil {
+			add(Suggestion{Name: normalizeName(m[1]), Value: m[2], Source: "labeled text"})
+		} else if emails := emailInText.FindAllString(line, -1); len(emails) > 0 {
+			for _, email := range emails {
+				add(Suggestion{Name: "EMAIL", Value: email, Source: "email in text"})
+			}
+		} else {
+			parseBareValue(line, add)
+		}
+		if len(report.Suggestions) == before {
+			report.Warnings = append(report.Warnings, Warning{Line: lineNumber, Message: "No new value recognized on this line. Review it manually; nothing was executed."})
+		}
 	}
-	return out
+	return report
 }
 
 // parseBareValue recognizes a single pasted value without a name: an email,
@@ -274,5 +330,23 @@ func sensitive(name, value string) bool {
 			return true
 		}
 	}
-	return false
+	if u, err := url.Parse(value); err == nil && u.Scheme != "" && u.Host != "" {
+		// Signed links, connection strings and embedded credentials are secrets.
+		if u.User != nil || u.RawQuery != "" || u.Fragment != "" {
+			return true
+		}
+		return u.Scheme != "http" && u.Scheme != "https" && u.Scheme != "postgres" && u.Scheme != "postgresql" && u.Scheme != "redis"
+	}
+	if emailValue.MatchString(value) {
+		return false
+	}
+	if tokenish(value) {
+		return true
+	}
+	for _, suffix := range []string{"REGION", "PROFILE", "MODEL", "HOST", "PORT", "USERNAME", "EMAIL", "LOG_LEVEL"} {
+		if up == suffix || strings.HasSuffix(up, "_"+suffix) {
+			return false
+		}
+	}
+	return true // uncertain values must not silently bypass redaction
 }

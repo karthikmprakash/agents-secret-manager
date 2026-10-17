@@ -7,7 +7,7 @@ import Cocoa
 import WebKit
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate {
   private var window: NSWindow!
   private var webView: WKWebView!
   private var server: Process?
@@ -91,6 +91,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     _ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
     decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
   ) {
+    // Recovery archives are generated as encrypted blobs by our own origin.
+    // Allow only explicit downloads, not arbitrary blob navigation.
+    if navigationAction.shouldPerformDownload,
+      let url = navigationAction.request.url, url.scheme == "blob",
+      let local = serviceURL,
+      url.absoluteString.hasPrefix("blob:http://127.0.0.1:\(local.port ?? 0)/") {
+      decisionHandler(.download)
+      return
+    }
     guard let url = navigationAction.request.url, let local = serviceURL,
       url.scheme == local.scheme, url.host == local.host, url.port == local.port
     else {
@@ -98,6 +107,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
       return
     }
     decisionHandler(.allow)
+  }
+
+  func webView(_ webView: WKWebView, navigationAction: WKNavigationAction, didBecome download: WKDownload) {
+    download.delegate = self
+  }
+
+  func download(
+    _ download: WKDownload, decideDestinationUsing response: URLResponse,
+    suggestedFilename: String, completionHandler: @escaping (URL?) -> Void
+  ) {
+    let panel = NSSavePanel()
+    panel.nameFieldStringValue = "sm-recovery.age"
+    panel.message = "Save your encrypted recovery archive locally. Keep its passphrase separately."
+    panel.beginSheetModal(for: window) { result in
+      completionHandler(result == .OK ? panel.url : nil)
+    }
   }
 
   func webView(

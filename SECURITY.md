@@ -44,7 +44,11 @@ The full boundaries are in the [README](README.md#security-boundaries). In short
 
 - Reading vault contents without the Keychain identity.
 - Path traversal or reference collisions that read another project's secret.
-- MCP or UI endpoints returning raw values (there is no `secret_get`).
+- MCP tools or stored-state endpoints returning raw vault values (there is no
+  `secret_get`). The authenticated import preview deliberately returns only
+  values from the text the user just pasted, for local editing/verification.
+- Recovery archives exposing plaintext, accepting tampered ciphertext, or
+  replacing existing vault data without an explicit safe workflow.
 - Authentication flaws in the loopback UI server (token, cookie, CSP, origin).
 - Bypassing the "refuse plaintext shadow" rule unintentionally.
 - Manifest writes that corrupt unrelated entries or leave broken files.
@@ -63,8 +67,11 @@ The full boundaries are in the [README](README.md#security-boundaries). In short
   rewriting or truncation.
 - `sm doctor` is a bounded scanner for registered values, not a proof that a
   transcript or repository is clean.
-- Backup/restore is unfinished: `vault.age` alone is not enough without the
-  Keychain identity.
+- `vault.age` alone is not enough without the Keychain identity. The separate
+  passphrase-encrypted recovery archive is portable, but its passphrase cannot
+  be reset. Project manifests and audit history must be backed up separately.
+- Restore uses two no-replace file installations, not a crash-atomic multi-file
+  transaction. Do not delete an original recovery archive until restore is verified.
 
 If you are unsure whether something is a limitation or a vulnerability, report
 it privately and we will figure it out together.
