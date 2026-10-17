@@ -170,20 +170,22 @@ unselected config is left as-is. Dry-run writes nothing. A conflicting stored
 value aborts the preflight: there is no silent replacement. The source file and
 the vault are separate files, not one crash-atomic transaction.
 
-### Paste a command
+### Paste anything
 
-The UI's **Import secrets → Command** mode detects credentials in copy-pasted
-setup commands and env lines, suggests the entry names, whether each is a secret
-or plain config, and which service group to use:
+The UI's **Import secrets** sheet takes plain text: `.env` lines, setup
+commands, or a mix of both. It suggests the entry names, whether each is a
+secret or plain config, and which service group to use:
 
 ```text
+STRIPE_BASE_URL=https://api.stripe.com
 modal token set --token-id … --token-secret … --profile=karthik
 modal profile activate karthik
+aws configure set aws_access_key_id AKIA…
 ```
 
-becomes `MODAL_TOKEN_ID` (secret, modal), `MODAL_TOKEN_SECRET` (secret, modal)
-and `MODAL_PROFILE` (config, modal). Missing groups are created when you store
-the selection.
+The Modal lines become `MODAL_TOKEN_ID` (secret, modal), `MODAL_TOKEN_SECRET`
+(secret, modal) and `MODAL_PROFILE` (config, modal); the env lines are grouped
+by their prefix. Missing groups are created when you store the selection.
 
 Supported today: `modal token set`, `modal profile activate`,
 `aws configure set`, and `KEY=value` / `export KEY=value` lines (a leading `$`

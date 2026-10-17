@@ -322,7 +322,6 @@
   .notice p { max-width: 65ch; margin: 0 0 12px; color: var(--text-2); }
   .notice.error { border-color: var(--err); color: var(--err); }
   .import-options { display: flex; flex-direction: column; gap: 8px; max-height: 280px; overflow: auto; }
-  #dotenvFields, #commandFields { display: flex; flex-direction: column; gap: 16px; }
   .detect-row {
     display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: start; gap: 4px 10px;
@@ -726,31 +725,13 @@
     </div>
 
     <section id="bulkFields" hidden>
-      <div>
-        <div class="seg mini" id="importModeSeg" role="group" aria-label="Import source">
-          <button class="seg-btn active" type="button" data-import-mode="dotenv">Dotenv</button>
-          <button class="seg-btn" type="button" data-import-mode="command">Command</button>
-        </div>
-      </div>
-
-      <div id="dotenvFields">
-        <label class="field">Paste dotenv entries
-          <textarea id="bulkData" name="bulkData" spellcheck="false" autocomplete="off" placeholder="AWS_ACCESS_KEY_ID=…&#10;AWS_SECRET_ACCESS_KEY=…"></textarea>
-        </label>
-        <label class="field">Or choose an env file <input id="bulkFile" name="file" type="file" accept=".env,.txt,text/plain"></label>
-        <p class="hint">Preview shows names only. Choose which values to store globally. Your source file is not changed. Existing, differing values are never overwritten.</p>
-        <button class="btn" id="previewImport" type="button">Preview names</button>
-        <div class="import-options" id="importNames" aria-live="polite"></div>
-      </div>
-
-      <div id="commandFields" hidden>
-        <label class="field">Paste a command
-          <textarea id="commandData" spellcheck="false" autocomplete="off" placeholder="modal token set --token-id … --token-secret … --profile=you&#10;modal profile activate you"></textarea>
-        </label>
-        <p class="hint">Detects known CLIs and env lines. Sensitive values are masked until revealed; the preview clears when the sheet closes.</p>
-        <button class="btn" id="detectBtn" type="button">Detect</button>
-        <div class="import-options" id="detectResults" aria-live="polite"></div>
-      </div>
+      <label class="field">Paste anything
+        <textarea id="pasteData" spellcheck="false" autocomplete="off" placeholder="AWS_ACCESS_KEY_ID=AKIA…&#10;export STRIPE_API_KEY=sk_live_…&#10;modal token set --token-id … --token-secret … --profile=you"></textarea>
+      </label>
+      <label class="field">Or load a file <input id="pasteFile" name="file" type="file" accept=".env,.txt,text/plain"></label>
+      <p class="hint">Detects .env lines and setup commands in one pass, groups related values, and stores nothing until you confirm. Sensitive values are masked until revealed; the preview clears when the sheet closes.</p>
+      <button class="btn" id="detectBtn" type="button">Detect</button>
+      <div class="import-options" id="detectResults" aria-live="polite"></div>
     </section>
 
     <section id="configFields" hidden>
@@ -801,7 +782,6 @@
     filter: "",
     formMode: "value",
     kind: "secret",
-    importMode: "dotenv",
     scope: "global",
     sheet: null,
     busy: false,
@@ -1376,25 +1356,6 @@
     if (group) $("fGroupAdd").value = group;
   }
 
-  function setImportMode(mode) {
-    state.importMode = mode;
-    document.querySelectorAll("#importModeSeg .seg-btn").forEach((btn) => {
-      btn.classList.toggle("active", btn.dataset.importMode === mode);
-      btn.setAttribute("aria-pressed", String(btn.dataset.importMode === mode));
-    });
-    $("dotenvFields").hidden = mode !== "dotenv";
-    $("commandFields").hidden = mode !== "command";
-    $("importNames").textContent = "";
-    $("detectResults").textContent = "";
-    $("saveBtn").disabled = true;
-    $("formError").hidden = true;
-    if (state.sheet?.mode === "import") {
-      $("sheetSub").textContent = mode === "command"
-        ? "Paste a command; review the detected credentials before storing them."
-        : "Select a set of credentials to make available everywhere.";
-    }
-  }
-
   function maskValue(value) {
     if (!value) return "";
     if (value.length <= 8) return "••••••••";
@@ -1528,7 +1489,7 @@
     $("sheetTitle").textContent = bulk ? "Import secrets" : config ? "Manual setup" : group ? "Move to group" : mode === "add" ? "Add secret" : "Replace stored value";
     $("sheetSub").textContent = mode === "add"
       ? "Stored once in the vault. Agents receive it at runtime — never in their context."
-      : bulk ? "Select a set of credentials to make available everywhere."
+      : bulk ? "Paste anything — .env lines, setup commands, or a mix. Review before storing."
       : config ? "Paste a snippet into any MCP client. Detected harnesses can also be wired from Configure all."
       : group ? "Choose a group or type a new one. Leave empty to ungroup."
       : "This replaces the local value. Create and revoke keys with your provider separately.";
@@ -1558,13 +1519,10 @@
     setKind("secret");
     if (bulk || config || group) $("valueWrap").hidden = true;
     setScope("global");
-    $("bulkData").value = "";
-    $("bulkFile").value = "";
-    $("importNames").textContent = "";
-    $("commandData").value = "";
+    $("pasteData").value = "";
+    $("pasteFile").value = "";
     $("detectResults").textContent = "";
     $("discardBtn").hidden = true;
-    if (bulk) setImportMode("dotenv");
     document.querySelector(".app").inert = true;
 
     $("secretForm").scrollTop = 0;
@@ -1579,13 +1537,13 @@
       if (state.sheet !== sheet) return;
       if (config) $("sheetClose").focus();
       else if (group) $("fGroup").focus();
-      else (bulk ? $("bulkData") : mode === "add" ? $("fName") : $("fValue")).focus();
+      else (bulk ? $("pasteData") : mode === "add" ? $("fName") : $("fValue")).focus();
     }, 60);
   }
 
   function closeSheet(force = false) {
     if (state.busy) return;
-    if (!force && ($("fValue").value || $("fName").value || $("bulkData").value)) {
+    if (!force && ($("fValue").value || $("fName").value || $("pasteData").value)) {
       $("formError").textContent = "You have unsaved changes. Save them or choose Discard changes.";
       $("formError").hidden = false;
       $("discardBtn").hidden = false;
@@ -1593,10 +1551,8 @@
       return;
     }
     state.sheet = null;
-    $("fValue").value = $("fName").value = $("bulkData").value = $("bulkFile").value = $("fGroup").value = "";
-    $("commandData").value = "";
+    $("fValue").value = $("fName").value = $("pasteData").value = $("pasteFile").value = $("fGroup").value = "";
     $("detectResults").textContent = "";
-    $("importNames").textContent = "";
     document.querySelector(".app").inert = false;
     state.opener?.focus();
     $("scrim").classList.remove("open");
@@ -1613,42 +1569,32 @@
     error.hidden = true;
 
     if (state.sheet.mode === "import") {
-      if (state.importMode === "command") {
-        const names = Array.from($("detectResults").querySelectorAll("input:checked:not(:disabled)")).map((input) => input.value);
-        if (!names.length) {
-          error.textContent = "Select at least one detected entry.";
-          error.hidden = false;
-          return;
-        }
-        state.busy = true;
-        $("saveBtn").disabled = true;
-        $("saveBtn").textContent = "Storing…";
-        try {
-          const result = await api("/api/add-detected", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text: $("commandData").value, names, scope: "global" }),
-          });
-          state.busy = false;
-          closeSheet(true);
-          toast(result.count + (result.count === 1 ? " entry added" : " entries added"));
-          await loadState();
-        } catch (err) {
-          state.busy = false;
-          error.textContent = err.message;
-          error.hidden = false;
-          $("saveBtn").disabled = false;
-          $("saveBtn").textContent = "Store selected";
-        }
+      const names = Array.from($("detectResults").querySelectorAll("input:checked:not(:disabled)")).map((input) => input.value);
+      if (!names.length) {
+        error.textContent = "Detect the text and select at least one entry.";
+        error.hidden = false;
         return;
       }
-      const names = Array.from($("importNames").querySelectorAll("input:checked")).map(input => input.value);
-      if (!names.length) { error.textContent = "Preview the names and select at least one secret."; error.hidden = false; return; }
-      state.busy = true; $("saveBtn").disabled = true; $("saveBtn").textContent = "Storing…";
+      state.busy = true;
+      $("saveBtn").disabled = true;
+      $("saveBtn").textContent = "Storing…";
       try {
-        await api("/api/import", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({data:$("bulkData").value,names})});
-        state.busy = false; closeSheet(true); toast(names.length + (names.length === 1 ? " secret stored" : " secrets stored")); await loadState();
-      } catch (err) { state.busy = false; error.textContent = err.message; error.hidden = false; $("saveBtn").disabled = false; $("saveBtn").textContent = "Store selected"; }
+        const result = await api("/api/add-detected", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: $("pasteData").value, names, scope: "global" }),
+        });
+        state.busy = false;
+        closeSheet(true);
+        toast(result.count + (result.count === 1 ? " entry added" : " entries added"));
+        await loadState();
+      } catch (err) {
+        state.busy = false;
+        error.textContent = err.message;
+        error.hidden = false;
+        $("saveBtn").disabled = false;
+        $("saveBtn").textContent = "Store selected";
+      }
       return;
     }
 
@@ -1739,33 +1685,22 @@
     }
   });
 
-  $("bulkFile").addEventListener("change", async event => {
-    const file = event.target.files[0];
-    if (!file) return;
-    if (file.size > 500000) { toast("Choose a file smaller than 500 KB."); return; }
-    $("bulkData").value = await file.text();
-    $("importNames").textContent = "";
-  });
-  $("bulkData").addEventListener("input", () => { $("importNames").textContent = ""; });
-  $("bulkData").addEventListener("input", () => {
-    $("importNames").textContent = "";
-    $("saveBtn").disabled = true;
-  });
-  $("bulkFile").addEventListener("change", () => {
-    $("importNames").textContent = "";
-    $("saveBtn").disabled = true;
-  });
-  document.querySelectorAll("#importModeSeg .seg-btn").forEach((btn) => {
-    btn.addEventListener("click", () => setImportMode(btn.dataset.importMode));
-  });
-  $("detectResults").addEventListener("change", updateDetectSave);
-  $("commandData").addEventListener("input", () => {
+  $("pasteData").addEventListener("input", () => {
     $("detectResults").textContent = "";
     $("saveBtn").disabled = true;
   });
+  $("pasteFile").addEventListener("change", async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    if (file.size > 500000) { toast("Choose a file smaller than 500 KB."); return; }
+    $("pasteData").value = await file.text();
+    $("detectResults").textContent = "";
+    $("saveBtn").disabled = true;
+  });
+  $("detectResults").addEventListener("change", updateDetectSave);
   $("detectBtn").addEventListener("click", async (event) => {
-    const text = $("commandData").value;
-    if (!text.trim()) { toast("Paste a command or env lines first."); return; }
+    const text = $("pasteData").value;
+    if (!text.trim()) { toast("Paste some text first."); return; }
     const btn = event.currentTarget;
     btn.disabled = true;
     btn.textContent = "Detecting…";
@@ -1784,20 +1719,6 @@
     }
     btn.disabled = false;
     btn.textContent = "Detect";
-  });
-  $("previewImport").addEventListener("click", async event => {
-    const btn = event.currentTarget; btn.disabled = true;
-    try {
-      const result = await api("/api/import", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({data:$("bulkData").value,preview:true})});
-      $("importNames").textContent = "";
-      for (const name of result.names) {
-        const input = el("input",{type:"checkbox",value:name}); input.checked = true;
-        $("importNames").append(el("label",{},[input,document.createTextNode(name)]));
-      }
-      if (!result.names.length) toast("No non-empty plaintext entries found.");
-      $("saveBtn").disabled = result.names.length === 0;
-    } catch (err) { $("formError").textContent = err.message; $("formError").hidden = false; }
-    finally { btn.disabled = false; }
   });
   $("initializeBtn").addEventListener("click", async event => {
     const btn = event.currentTarget; btn.disabled = true; btn.textContent = "Creating vault…";
@@ -1885,7 +1806,7 @@
   });
 
   window.addEventListener("beforeunload", event => {
-    if (state.sheet && ($("fValue").value || $("bulkData").value)) { event.preventDefault(); event.returnValue = ""; }
+    if (state.sheet && ($("fValue").value || $("pasteData").value)) { event.preventDefault(); event.returnValue = ""; }
   });
   window.addEventListener("hashchange", () => setView(location.hash.slice(1)));
   setView(location.hash.slice(1));
