@@ -7,6 +7,13 @@ the `0.x` series.
 
 ## [Unreleased]
 
+### Added
+
+- Secrets are organized into distinct group cards with member counts; each
+  group has a quick-add action that preselects it.
+- The add-secret sheet asks for a group: assign an existing one, create a new
+  one inline, or leave it ungrouped.
+
 ## [0.3.0] - 2026-10-17
 
 First public release.

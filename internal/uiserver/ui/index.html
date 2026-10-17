@@ -325,9 +325,18 @@
   .import-options label { display: flex; align-items: center; gap: 8px; overflow-wrap: anywhere; font-family: var(--mono); font-size: 12px; }
   .agent > div:nth-child(2) { min-width: 0; flex: 1; }
   .agent-detail { overflow-wrap: anywhere; }
-  .service-head { display: flex; align-items: center; gap: 10px; padding: 16px 16px 6px; list-style: none; color: var(--text-3); }
-  .service-head h2 { margin: 0; font: 600 10.5px var(--mono); letter-spacing: .05em; text-transform: uppercase; color: inherit; }
-  .service-head::after { content: ""; flex: 1; height: 1px; background: var(--line-soft); }
+  .secret-groups { display: flex; flex-direction: column; gap: 22px; }
+  .secret-group { display: flex; flex-direction: column; }
+  .group-head { display: flex; align-items: center; gap: 8px; padding: 0 2px 9px; }
+  .group-head h2 { margin: 0; font: 600 10.5px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--text-2); }
+  .group-count { font: 10px var(--mono); color: var(--text-3); border: 1px solid var(--line-soft); border-radius: 999px; padding: 0 6px; line-height: 16px; }
+  .group-add {
+    margin-left: auto; display: grid; place-items: center; width: 22px; height: 22px;
+    border: 1px solid transparent; border-radius: 6px; background: transparent;
+    color: var(--text-3); cursor: pointer;
+  }
+  .group-add:hover { color: var(--text); border-color: var(--line); background: var(--panel); }
+  .group-add:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .sheet-foot { flex-wrap: wrap; }
   .muted { color: var(--text-3); }
   button, a { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
@@ -359,6 +368,7 @@
   }
   .scope-note { font-size: 10.5px; color: var(--text-3); }
   .value-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+  .group-pick { display: flex; flex-direction: column; gap: 12px; }
   .flabel { font: 600 10.5px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
   .seg.mini { padding: 2px; border-radius: 8px; }
   .seg.mini .seg-btn { flex: none; padding: 3px 10px; font-size: 11px; border-radius: 6px; }
@@ -432,6 +442,7 @@
     .chips { grid-column: 2; flex-wrap: wrap; }
     .row-menu { grid-column: 3; grid-row: 1 / 3; }
     .row-menu > summary { width: 36px; height: 36px; }
+    .group-add { width: 30px; height: 30px; }
     .agent { flex-wrap: wrap; }
     .agent-status { margin-left: 40px; }
     .scan-controls { flex-wrap: wrap; }
@@ -516,7 +527,7 @@
         <button class="btn primary" id="initializeBtn" type="button">Create vault</button>
       </div>
       <div class="notice error" id="loadError" role="alert" hidden></div>
-      <ul class="list" id="secretList" aria-live="polite"></ul>
+      <div class="secret-groups" id="secretList" aria-live="polite"></div>
       <div class="empty" id="secretsEmpty" hidden>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="9" r="4"/><path d="M10.5 12.5 9.5 20h5l-1-7.5"/></svg>
         <h2>No secrets yet</h2>
@@ -639,6 +650,18 @@
         </label>
       </div>
       <p class="hint">8–256 characters. Generated locally and stored in the vault.</p>
+    </div>
+
+    <div id="addGroupRow" class="group-pick">
+      <label class="field">Group
+        <select id="fGroupChoice" aria-label="Group">
+          <option value="">No group</option>
+        </select>
+      </label>
+      <label class="field" id="newGroupWrap" hidden>New group name
+        <input id="fNewGroup" placeholder="stripe" autocomplete="off" spellcheck="false">
+        <small>Letters, digits, dot, dash, underscore — max 32.</small>
+      </label>
     </div>
 
     <section id="bulkFields" hidden>
@@ -895,9 +918,29 @@
     const groupKeys = Array.from(groups.keys()).sort((a, b) => (!a ? 1 : !b ? -1 : a.localeCompare(b)));
     const anyGroup = groupKeys.some((key) => key !== "");
     for (const key of groupKeys) {
-      if (key) list.append(el("li", { class: "service-head" }, [el("h2", { text: key })]));
-      else if (anyGroup) list.append(el("li", { class: "service-head" }, [el("h2", { text: "Ungrouped" })]));
-      for (const secret of groups.get(key)) list.append(secretRow(secret));
+      const members = groups.get(key);
+      const section = el("section", { class: "secret-group", "aria-label": key || "Ungrouped" });
+      if (key || anyGroup) {
+        const head = el("header", { class: "group-head" }, [
+          el("h2", { text: key || "Ungrouped" }),
+          el("span", { class: "group-count", text: String(members.length) }),
+        ]);
+        if (key) {
+          const add = el("button", {
+            class: "group-add", type: "button",
+            "aria-label": "Add a secret to " + key,
+            title: "Add a secret to " + key,
+          });
+          add.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
+          add.addEventListener("click", () => openAddSheet(key));
+          head.append(add);
+        }
+        section.append(head);
+      }
+      const groupList = el("ul", { class: "list" });
+      for (const secret of members) groupList.append(secretRow(secret));
+      section.append(groupList);
+      list.append(section);
     }
   }
 
@@ -1167,6 +1210,35 @@
     }
   }
 
+  function populateGroupChoices(selected = "") {
+    const sel = $("fGroupChoice");
+    sel.textContent = "";
+    sel.append(el("option", { value: "", text: "No group" }));
+    const groups = Array.from(new Set((state.data?.secrets || []).map((s) => s.service).filter(Boolean))).sort();
+    for (const group of groups) sel.append(el("option", { value: group, text: group }));
+    sel.append(el("option", { value: "__new__", text: "New group…" }));
+    sel.value = selected && selected !== "__new__" ? selected : "";
+    updateGroupChoice();
+  }
+
+  function updateGroupChoice() {
+    const isNew = $("fGroupChoice").value === "__new__";
+    $("newGroupWrap").hidden = !isNew;
+    if (!isNew) {
+      $("fNewGroup").value = "";
+    } else {
+      setTimeout(() => $("fNewGroup").focus(), 30);
+    }
+  }
+
+  function openAddSheet(group = "") {
+    openSheet("add");
+    if (group) {
+      $("fGroupChoice").value = group;
+      updateGroupChoice();
+    }
+  }
+
   function setKind(kind) {
     state.kind = kind;
     document.querySelectorAll("#kindSeg .seg-btn").forEach((btn) => {
@@ -1249,12 +1321,14 @@
     }
     $("scopeRow").hidden = mode !== "add";
     $("kindRow").hidden = mode !== "add";
+    $("addGroupRow").hidden = mode !== "add";
     $("fName").value = "";
     $("fValue").value = "";
     $("fValue").type = "password";
     $("revealValue").setAttribute("aria-label", "Show value");
     $("revealValue").setAttribute("aria-pressed", "false");
     renderNameMeta();
+    populateGroupChoices("");
     $("fGenerateProfile").value = "hex";
     $("fGenerateLength").value = "32";
     $("formError").hidden = true;
@@ -1375,6 +1449,21 @@
       }
       body.name = name;
       body.scope = state.scope;
+      const choice = $("fGroupChoice").value;
+      const group = choice === "__new__" ? $("fNewGroup").value.trim() : choice;
+      if (choice === "__new__" && !group) {
+        error.textContent = "Enter a group name, or choose No group.";
+        error.hidden = false;
+        $("fNewGroup").focus();
+        return;
+      }
+      if (group && !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,31}$/.test(group)) {
+        error.textContent = "Group names use letters, digits, dot, dash, underscore (max 32).";
+        error.hidden = false;
+        $("fNewGroup").focus();
+        return;
+      }
+      body.service = group;
       body.sensitive = state.kind !== "config";
     } else {
       body.name = state.sheet.name;
@@ -1462,9 +1551,10 @@
     btn.addEventListener("click", () => setView(btn.dataset.view));
   });
 
-  $("addBtn").addEventListener("click", () => openSheet("add"));
+  $("addBtn").addEventListener("click", () => openAddSheet());
   $("importBtn").addEventListener("click", () => openSheet("import"));
-  $("emptyAdd").addEventListener("click", () => openSheet("add"));
+  $("emptyAdd").addEventListener("click", () => openAddSheet());
+  $("fGroupChoice").addEventListener("change", updateGroupChoice);
   $("emptyClear").addEventListener("click", () => {
     state.filter = "";
     $("filter").value = "";
