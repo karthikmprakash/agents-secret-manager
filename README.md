@@ -170,6 +170,27 @@ unselected config is left as-is. Dry-run writes nothing. A conflicting stored
 value aborts the preflight: there is no silent replacement. The source file and
 the vault are separate files, not one crash-atomic transaction.
 
+### Paste a command
+
+The UI's **Import secrets → Command** mode detects credentials in copy-pasted
+setup commands and env lines, suggests the entry names, whether each is a secret
+or plain config, and which service group to use:
+
+```text
+modal token set --token-id … --token-secret … --profile=karthik
+modal profile activate karthik
+```
+
+becomes `MODAL_TOKEN_ID` (secret, modal), `MODAL_TOKEN_SECRET` (secret, modal)
+and `MODAL_PROFILE` (config, modal). Missing groups are created when you store
+the selection.
+
+Supported today: `modal token set`, `modal profile activate`,
+`aws configure set`, and `KEY=value` / `export KEY=value` lines (a leading `$`
+or `sudo` is tolerated). Detection is value-free: the preview contains names,
+kinds and groups only; values stay in the local request and are never returned
+or displayed again. Entries that already exist are marked and skipped.
+
 ## Projects
 
 ```sh

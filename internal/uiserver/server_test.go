@@ -88,6 +88,103 @@ func TestAuthRequired(t *testing.T) {
 
 func sURL(host, path string) string { return "http://" + host + path }
 
+func TestDetectAndAdd(t *testing.T) {
+	_, host, token := newTestServer(t)
+	text := `modal token set --token-id ak-EXAMPLEID --token-secret as-EXAMPLESECRET --profile=test
+modal profile activate test`
+
+	code, body := do(t, "POST", sURL(host, "/api/detect"), token,
+		`{"text":"modal token set --token-id ak-EXAMPLEID --token-secret as-EXAMPLESECRET --profile=test\nmodal profile activate test"}`)
+	if code != 200 {
+		t.Fatalf("detect code = %d: %s", code, body)
+	}
+	if strings.Contains(string(body), "ak-EXAMPLEID") || strings.Contains(string(body), "as-EXAMPLESECRET") {
+		t.Fatal("detect response leaked a value")
+	}
+	var detected struct {
+		Suggestions []struct {
+			Name      string `json:"name"`
+			Service   string `json:"service"`
+			Sensitive bool   `json:"sensitive"`
+			Existing  bool   `json:"existing"`
+			NewGroup  bool   `json:"newGroup"`
+		} `json:"suggestions"`
+	}
+	if err := json.Unmarshal(body, &detected); err != nil {
+		t.Fatal(err)
+	}
+	if len(detected.Suggestions) != 3 {
+		t.Fatalf("want 3 suggestions, got %d: %s", len(detected.Suggestions), body)
+	}
+	for _, s := range detected.Suggestions {
+		if s.Service != "modal" {
+			t.Errorf("%s service = %q", s.Name, s.Service)
+		}
+		if s.Name == "MODAL_PROFILE" && s.Sensitive {
+			t.Error("profile should be config, not sensitive")
+		}
+		if s.Name != "MODAL_PROFILE" && !s.Sensitive {
+			t.Errorf("%s should be sensitive", s.Name)
+		}
+		if !s.NewGroup {
+			t.Errorf("%s: group should be new", s.Name)
+		}
+	}
+
+	addBody := `{"text":"modal token set --token-id ak-EXAMPLEID --token-secret as-EXAMPLESECRET --profile=test\nmodal profile activate test","names":["MODAL_TOKEN_ID","MODAL_TOKEN_SECRET","MODAL_PROFILE"],"scope":"global"}`
+	code, body = do(t, "POST", sURL(host, "/api/add-detected"), token, addBody)
+	if code != 200 {
+		t.Fatalf("add-detected code = %d: %s", code, body)
+	}
+
+	code, body = do(t, "GET", sURL(host, "/api/state"), token, "")
+	if code != 200 {
+		t.Fatalf("state code = %d", code)
+	}
+	var state stateResponse
+	if err := json.Unmarshal(body, &state); err != nil {
+		t.Fatal(err)
+	}
+	byName := map[string]secretView{}
+	for _, s := range state.Secrets {
+		byName[s.Name] = s
+	}
+	for name, sensitive := range map[string]bool{
+		"MODAL_TOKEN_ID": true, "MODAL_TOKEN_SECRET": true, "MODAL_PROFILE": false,
+	} {
+		s, ok := byName[name]
+		if !ok {
+			t.Fatalf("%s missing after add", name)
+		}
+		if s.Service != "modal" || s.Sensitive != sensitive {
+			t.Errorf("%s = service %q sensitive %v", name, s.Service, s.Sensitive)
+		}
+	}
+
+	// A second detection sees existing entries and an existing group.
+	code, body = do(t, "POST", sURL(host, "/api/detect"), token,
+		`{"text":"modal token set --token-id ak-EXAMPLEID --token-secret as-EXAMPLESECRET"}`)
+	if code != 200 {
+		t.Fatalf("second detect code = %d", code)
+	}
+	if err := json.Unmarshal(body, &detected); err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range detected.Suggestions {
+		if !s.Existing || s.NewGroup {
+			t.Errorf("%s: existing=%v newGroup=%v, want true/false", s.Name, s.Existing, s.NewGroup)
+		}
+	}
+
+	// Missing names are rejected rather than silently dropped.
+	code, _ = do(t, "POST", sURL(host, "/api/add-detected"), token,
+		`{"text":"MODAL_TOKEN_ID=ak-EXAMPLEID","names":["NOT_THERE"],"scope":"global"}`)
+	if code != 400 {
+		t.Errorf("unknown selection code = %d, want 400", code)
+	}
+	_ = text
+}
+
 func TestMcpConfigSnippets(t *testing.T) {
 	_, host, token := newTestServer(t)
 	code, body := do(t, "GET", sURL(host, "/api/mcp-config"), token, "")

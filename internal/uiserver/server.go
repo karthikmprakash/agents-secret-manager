@@ -24,6 +24,7 @@ import (
 
 	"github.com/karthikmprakash/agents-secret-manager/internal/audit"
 	"github.com/karthikmprakash/agents-secret-manager/internal/config"
+	"github.com/karthikmprakash/agents-secret-manager/internal/detect"
 	"github.com/karthikmprakash/agents-secret-manager/internal/generate"
 	"github.com/karthikmprakash/agents-secret-manager/internal/keys"
 	"github.com/karthikmprakash/agents-secret-manager/internal/manifest"
@@ -65,6 +66,8 @@ func Start(port int) (*Server, error) {
 	mux.HandleFunc("POST /api/group", s.auth(s.group))
 	mux.HandleFunc("POST /api/rotate", s.auth(s.rotate))
 	mux.HandleFunc("POST /api/import", s.auth(s.bulkImport))
+	mux.HandleFunc("POST /api/detect", s.auth(s.detect))
+	mux.HandleFunc("POST /api/add-detected", s.auth(s.addDetected))
 	mux.HandleFunc("GET /api/agents", s.auth(s.agents))
 	mux.HandleFunc("GET /api/mcp-config", s.auth(s.mcpConfig))
 	mux.HandleFunc("POST /api/setup", s.auth(s.setup))
@@ -348,6 +351,129 @@ func (s *Server) add(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]any{"ok": true, "name": req.Name})
+}
+
+type detectRequest struct {
+	Text string `json:"text"`
+}
+
+type detectView struct {
+	Name      string `json:"name"`
+	Service   string `json:"service,omitempty"`
+	Sensitive bool   `json:"sensitive"`
+	Source    string `json:"source"`
+	Existing  bool   `json:"existing"`
+	NewGroup  bool   `json:"newGroup"`
+}
+
+func (s *Server) detect(w http.ResponseWriter, r *http.Request) {
+	var req detectRequest
+	if err := decode(r, &req); err != nil {
+		writeError(w, 400, err)
+		return
+	}
+	if len(req.Text) > 128<<10 {
+		writeError(w, 400, fmt.Errorf("paste is too large (128 KiB limit)"))
+		return
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		writeError(w, 500, err)
+		return
+	}
+	loaded, err := manifest.LoadOptional(cwd)
+	if err != nil {
+		writeError(w, 500, err)
+		return
+	}
+	merged := loaded.Merged()
+	groups := map[string]bool{}
+	for _, group := range merged.Services() {
+		groups[group] = true
+	}
+	suggestions := detect.Parse(req.Text)
+	out := make([]detectView, 0, len(suggestions))
+	for _, suggestion := range suggestions {
+		_, exists := merged.Secrets[suggestion.Name]
+		out = append(out, detectView{
+			Name:      suggestion.Name,
+			Service:   suggestion.Service,
+			Sensitive: suggestion.Sensitive,
+			Source:    suggestion.Source,
+			Existing:  exists,
+			NewGroup:  suggestion.Service != "" && !groups[suggestion.Service],
+		})
+	}
+	writeJSON(w, 200, map[string]any{"suggestions": out})
+}
+
+type addDetectedRequest struct {
+	Text  string   `json:"text"`
+	Names []string `json:"names"`
+	Scope string   `json:"scope"`
+}
+
+func (s *Server) addDetected(w http.ResponseWriter, r *http.Request) {
+	var req addDetectedRequest
+	if err := decode(r, &req); err != nil {
+		writeError(w, 400, err)
+		return
+	}
+	if len(req.Text) > 128<<10 {
+		writeError(w, 400, fmt.Errorf("paste is too large (128 KiB limit)"))
+		return
+	}
+	if len(req.Names) == 0 || len(req.Names) > 50 {
+		writeError(w, 400, fmt.Errorf("select between 1 and 50 suggestions"))
+		return
+	}
+	wanted := map[string]bool{}
+	for _, name := range req.Names {
+		wanted[name] = true
+	}
+	var inputs []secrets.Input
+	for _, suggestion := range detect.Parse(req.Text) {
+		if !wanted[suggestion.Name] {
+			continue
+		}
+		delete(wanted, suggestion.Name)
+		var sensitive *bool
+		if !suggestion.Sensitive {
+			no := false
+			sensitive = &no
+		}
+		inputs = append(inputs, secrets.Input{
+			Name:  suggestion.Name,
+			Value: suggestion.Value,
+			Secret: manifest.Secret{
+				Service:   suggestion.Service,
+				Sensitive: sensitive,
+			},
+		})
+	}
+	if len(inputs) == 0 {
+		writeError(w, 400, fmt.Errorf("none of the selected suggestions were detected"))
+		return
+	}
+	if len(wanted) > 0 {
+		missing := make([]string, 0, len(wanted))
+		for name := range wanted {
+			missing = append(missing, name)
+		}
+		sort.Strings(missing)
+		writeError(w, 400, fmt.Errorf("could not detect: %s", strings.Join(missing, ", ")))
+		return
+	}
+	p, err := target(req.Scope)
+	if err != nil {
+		writeError(w, 400, err)
+		return
+	}
+	if err := secrets.AddBatch(p, inputs, false); err != nil {
+		writeError(w, 409, err)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"ok": true, "count": len(inputs)})
 }
 
 type groupRequest struct {

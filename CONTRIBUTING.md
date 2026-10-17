@@ -60,6 +60,7 @@ override and is stripped from task children.
 | `internal/wireup/` | Harness detection, status and wiring; manual snippets |
 | `internal/agentcfg/` | Comment-preserving merges for JSON/YAML/TOML agent configs |
 | `internal/secrets/` | Shared validated mutations used by CLI and UI |
+| `internal/detect/` | Parses pasted commands/env lines for the detect → review flow |
 | `internal/scan/` | `sm doctor` scanner (registered values only) |
 | `internal/uiserver/` | Loopback HTTP server, API and embedded UI |
 | `macapp/`, `scripts/` | WKWebView shell and build script |

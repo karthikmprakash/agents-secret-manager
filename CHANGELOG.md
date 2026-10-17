@@ -9,13 +9,16 @@ the `0.x` series.
 
 ### Added
 
+- Detect credentials from pasted commands and env lines (Modal, AWS, generic
+  KEY=value), review suggested names, secret/config kinds and groups, and
+  create missing groups on save. Detect responses never include values.
+
 - Secrets are organized into distinct group cards with member counts; each
   group has a quick-add action that preselects it.
 - The add-secret sheet asks for a group: assign an existing one, create a new
   one inline, or leave it ungrouped.
 - Group pickers are a styled combobox with filtering, keyboard navigation and
   an explicit create-new row, replacing the native datalist/select popups.
-
 ## [0.3.0] - 2026-10-17
 
 First public release.

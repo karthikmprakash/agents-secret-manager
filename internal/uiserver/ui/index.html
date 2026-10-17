@@ -322,6 +322,18 @@
   .notice p { max-width: 65ch; margin: 0 0 12px; color: var(--text-2); }
   .notice.error { border-color: var(--err); color: var(--err); }
   .import-options { display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow: auto; }
+  #dotenvFields, #commandFields { display: flex; flex-direction: column; gap: 16px; }
+  .detect-row {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 8px 10px; border: 1px solid var(--line-soft); border-radius: 8px;
+  }
+  .detect-row input { flex: none; }
+  .detect-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .detect-name { font: 500 12px var(--mono); }
+  .detect-source { font-size: 10.5px; color: var(--text-3); }
+  .detect-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+  .detect-row.existing { opacity: .55; }
+  .detect-empty { margin: 0; }
   .import-options label { display: flex; align-items: center; gap: 8px; overflow-wrap: anywhere; font-family: var(--mono); font-size: 12px; }
   .agent > div:nth-child(2) { min-width: 0; flex: 1; }
   .agent-detail { overflow-wrap: anywhere; }
@@ -695,13 +707,31 @@
     </div>
 
     <section id="bulkFields" hidden>
-      <label class="field">Paste dotenv entries
-        <textarea id="bulkData" name="bulkData" spellcheck="false" autocomplete="off" placeholder="AWS_ACCESS_KEY_ID=…&#10;AWS_SECRET_ACCESS_KEY=…"></textarea>
-      </label>
-      <label class="field">Or choose an env file <input id="bulkFile" name="file" type="file" accept=".env,.txt,text/plain"></label>
-      <p class="hint">Preview shows names only. Choose which values to store globally. Your source file is not changed. Existing, differing values are never overwritten.</p>
-      <button class="btn" id="previewImport" type="button">Preview names</button>
-      <div class="import-options" id="importNames" aria-live="polite"></div>
+      <div>
+        <div class="seg mini" id="importModeSeg" role="group" aria-label="Import source">
+          <button class="seg-btn active" type="button" data-import-mode="dotenv">Dotenv</button>
+          <button class="seg-btn" type="button" data-import-mode="command">Command</button>
+        </div>
+      </div>
+
+      <div id="dotenvFields">
+        <label class="field">Paste dotenv entries
+          <textarea id="bulkData" name="bulkData" spellcheck="false" autocomplete="off" placeholder="AWS_ACCESS_KEY_ID=…&#10;AWS_SECRET_ACCESS_KEY=…"></textarea>
+        </label>
+        <label class="field">Or choose an env file <input id="bulkFile" name="file" type="file" accept=".env,.txt,text/plain"></label>
+        <p class="hint">Preview shows names only. Choose which values to store globally. Your source file is not changed. Existing, differing values are never overwritten.</p>
+        <button class="btn" id="previewImport" type="button">Preview names</button>
+        <div class="import-options" id="importNames" aria-live="polite"></div>
+      </div>
+
+      <div id="commandFields" hidden>
+        <label class="field">Paste a command
+          <textarea id="commandData" spellcheck="false" autocomplete="off" placeholder="modal token set --token-id … --token-secret … --profile=you&#10;modal profile activate you"></textarea>
+        </label>
+        <p class="hint">Detects known CLIs and env-style lines. Values stay local and are never shown after this box.</p>
+        <button class="btn" id="detectBtn" type="button">Detect</button>
+        <div class="import-options" id="detectResults" aria-live="polite"></div>
+      </div>
     </section>
 
     <section id="configFields" hidden>
@@ -752,6 +782,7 @@
     filter: "",
     formMode: "value",
     kind: "secret",
+    importMode: "dotenv",
     scope: "global",
     sheet: null,
     busy: false,
@@ -1326,6 +1357,64 @@
     if (group) $("fGroupAdd").value = group;
   }
 
+  function setImportMode(mode) {
+    state.importMode = mode;
+    document.querySelectorAll("#importModeSeg .seg-btn").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.importMode === mode);
+      btn.setAttribute("aria-pressed", String(btn.dataset.importMode === mode));
+    });
+    $("dotenvFields").hidden = mode !== "dotenv";
+    $("commandFields").hidden = mode !== "command";
+    $("importNames").textContent = "";
+    $("detectResults").textContent = "";
+    $("saveBtn").disabled = true;
+    $("formError").hidden = true;
+    if (state.sheet?.mode === "import") {
+      $("sheetSub").textContent = mode === "command"
+        ? "Paste a command; review the detected credentials before storing them."
+        : "Select a set of credentials to make available everywhere.";
+    }
+  }
+
+  function renderDetections(suggestions) {
+    const list = $("detectResults");
+    list.textContent = "";
+    if (!suggestions.length) {
+      list.append(el("p", {
+        class: "hint detect-empty",
+        text: "No credentials detected. Try a supported command (modal token set, aws configure set) or KEY=value lines.",
+      }));
+      $("saveBtn").disabled = true;
+      return;
+    }
+    for (const suggestion of suggestions) {
+      const input = el("input", { type: "checkbox", value: suggestion.name });
+      input.checked = !suggestion.existing;
+      input.disabled = !!suggestion.existing;
+      const chips = [
+        el("span", { class: "chip", text: suggestion.sensitive ? "secret" : "config" }),
+        suggestion.service
+          ? el("span", { class: "chip", text: suggestion.service + (suggestion.newGroup ? " · new" : "") })
+          : null,
+        suggestion.existing ? el("span", { class: "chip warn", text: "exists" }) : null,
+      ].filter(Boolean);
+      list.append(el("label", { class: "detect-row" + (suggestion.existing ? " existing" : "") }, [
+        input,
+        el("span", { class: "detect-main" }, [
+          el("span", { class: "detect-name", text: suggestion.name }),
+          el("span", { class: "detect-source", text: suggestion.source }),
+        ]),
+        el("span", { class: "detect-chips" }, chips),
+      ]));
+    }
+    updateDetectSave();
+  }
+
+  function updateDetectSave() {
+    const selected = $("detectResults").querySelectorAll("input:checked:not(:disabled)").length;
+    $("saveBtn").disabled = state.busy || selected === 0;
+  }
+
   function setKind(kind) {
     state.kind = kind;
     document.querySelectorAll("#kindSeg .seg-btn").forEach((btn) => {
@@ -1424,7 +1513,10 @@
     $("bulkData").value = "";
     $("bulkFile").value = "";
     $("importNames").textContent = "";
+    $("commandData").value = "";
+    $("detectResults").textContent = "";
     $("discardBtn").hidden = true;
+    if (bulk) setImportMode("dotenv");
     document.querySelector(".app").inert = true;
 
     $("secretForm").scrollTop = 0;
@@ -1471,6 +1563,35 @@
     error.hidden = true;
 
     if (state.sheet.mode === "import") {
+      if (state.importMode === "command") {
+        const names = Array.from($("detectResults").querySelectorAll("input:checked:not(:disabled)")).map((input) => input.value);
+        if (!names.length) {
+          error.textContent = "Select at least one detected entry.";
+          error.hidden = false;
+          return;
+        }
+        state.busy = true;
+        $("saveBtn").disabled = true;
+        $("saveBtn").textContent = "Storing…";
+        try {
+          const result = await api("/api/add-detected", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: $("commandData").value, names, scope: "global" }),
+          });
+          state.busy = false;
+          closeSheet(true);
+          toast(result.count + (result.count === 1 ? " entry added" : " entries added"));
+          await loadState();
+        } catch (err) {
+          state.busy = false;
+          error.textContent = err.message;
+          error.hidden = false;
+          $("saveBtn").disabled = false;
+          $("saveBtn").textContent = "Store selected";
+        }
+        return;
+      }
       const names = Array.from($("importNames").querySelectorAll("input:checked")).map(input => input.value);
       if (!names.length) { error.textContent = "Preview the names and select at least one secret."; error.hidden = false; return; }
       state.busy = true; $("saveBtn").disabled = true; $("saveBtn").textContent = "Storing…";
@@ -1583,6 +1704,36 @@
   $("bulkFile").addEventListener("change", () => {
     $("importNames").textContent = "";
     $("saveBtn").disabled = true;
+  });
+  document.querySelectorAll("#importModeSeg .seg-btn").forEach((btn) => {
+    btn.addEventListener("click", () => setImportMode(btn.dataset.importMode));
+  });
+  $("detectResults").addEventListener("change", updateDetectSave);
+  $("commandData").addEventListener("input", () => {
+    $("detectResults").textContent = "";
+    $("saveBtn").disabled = true;
+  });
+  $("detectBtn").addEventListener("click", async (event) => {
+    const text = $("commandData").value;
+    if (!text.trim()) { toast("Paste a command or env lines first."); return; }
+    const btn = event.currentTarget;
+    btn.disabled = true;
+    btn.textContent = "Detecting…";
+    $("formError").hidden = true;
+    try {
+      const result = await api("/api/detect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      renderDetections(result.suggestions || []);
+    } catch (err) {
+      $("formError").textContent = err.message;
+      $("formError").hidden = false;
+      $("saveBtn").disabled = true;
+    }
+    btn.disabled = false;
+    btn.textContent = "Detect";
   });
   $("previewImport").addEventListener("click", async event => {
     const btn = event.currentTarget; btn.disabled = true;
