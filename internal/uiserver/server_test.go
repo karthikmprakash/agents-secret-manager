@@ -90,20 +90,17 @@ func sURL(host, path string) string { return "http://" + host + path }
 
 func TestDetectAndAdd(t *testing.T) {
 	_, host, token := newTestServer(t)
-	text := `modal token set --token-id ak-EXAMPLEID --token-secret as-EXAMPLESECRET --profile=test
-modal profile activate test`
+	text := "modal token set --token-id ak-EXAMPLEID --token-secret as-EXAMPLESECRET --profile=test\nmodal profile activate test"
+	detectBody, _ := json.Marshal(map[string]string{"text": text})
 
-	code, body := do(t, "POST", sURL(host, "/api/detect"), token,
-		`{"text":"modal token set --token-id ak-EXAMPLEID --token-secret as-EXAMPLESECRET --profile=test\nmodal profile activate test"}`)
+	code, body := do(t, "POST", sURL(host, "/api/detect"), token, string(detectBody))
 	if code != 200 {
 		t.Fatalf("detect code = %d: %s", code, body)
-	}
-	if strings.Contains(string(body), "ak-EXAMPLEID") || strings.Contains(string(body), "as-EXAMPLESECRET") {
-		t.Fatal("detect response leaked a value")
 	}
 	var detected struct {
 		Suggestions []struct {
 			Name      string `json:"name"`
+			Value     string `json:"value"`
 			Service   string `json:"service"`
 			Sensitive bool   `json:"sensitive"`
 			Existing  bool   `json:"existing"`
@@ -116,7 +113,15 @@ modal profile activate test`
 	if len(detected.Suggestions) != 3 {
 		t.Fatalf("want 3 suggestions, got %d: %s", len(detected.Suggestions), body)
 	}
+	wantValues := map[string]string{
+		"MODAL_TOKEN_ID":     "ak-EXAMPLEID",
+		"MODAL_TOKEN_SECRET": "as-EXAMPLESECRET",
+		"MODAL_PROFILE":      "test",
+	}
 	for _, s := range detected.Suggestions {
+		if wantValues[s.Name] != s.Value {
+			t.Errorf("%s value = %q, want %q", s.Name, s.Value, wantValues[s.Name])
+		}
 		if s.Service != "modal" {
 			t.Errorf("%s service = %q", s.Name, s.Service)
 		}
@@ -131,8 +136,12 @@ modal profile activate test`
 		}
 	}
 
-	addBody := `{"text":"modal token set --token-id ak-EXAMPLEID --token-secret as-EXAMPLESECRET --profile=test\nmodal profile activate test","names":["MODAL_TOKEN_ID","MODAL_TOKEN_SECRET","MODAL_PROFILE"],"scope":"global"}`
-	code, body = do(t, "POST", sURL(host, "/api/add-detected"), token, addBody)
+	addBody, _ := json.Marshal(map[string]any{
+		"text":  text,
+		"names": []string{"MODAL_TOKEN_ID", "MODAL_TOKEN_SECRET", "MODAL_PROFILE"},
+		"scope": "global",
+	})
+	code, body = do(t, "POST", sURL(host, "/api/add-detected"), token, string(addBody))
 	if code != 200 {
 		t.Fatalf("add-detected code = %d: %s", code, body)
 	}
@@ -182,7 +191,6 @@ modal profile activate test`
 	if code != 400 {
 		t.Errorf("unknown selection code = %d, want 400", code)
 	}
-	_ = text
 }
 
 func TestMcpConfigSnippets(t *testing.T) {

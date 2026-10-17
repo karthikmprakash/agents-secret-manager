@@ -187,9 +187,11 @@ the selection.
 
 Supported today: `modal token set`, `modal profile activate`,
 `aws configure set`, and `KEY=value` / `export KEY=value` lines (a leading `$`
-or `sudo` is tolerated). Detection is value-free: the preview contains names,
-kinds and groups only; values stay in the local request and are never returned
-or displayed again. Entries that already exist are marked and skipped.
+or `sudo` is tolerated). The preview returns parsed values to this local UI so
+you can verify them: sensitive values are masked until you reveal them, config
+values are shown as-is. Values are never logged, the preview is cleared when the
+sheet closes, and stored state never exposes values. Entries that already exist
+are marked and skipped.
 
 ## Projects
 

@@ -359,6 +359,7 @@ type detectRequest struct {
 
 type detectView struct {
 	Name      string `json:"name"`
+	Value     string `json:"value"`
 	Service   string `json:"service,omitempty"`
 	Sensitive bool   `json:"sensitive"`
 	Source    string `json:"source"`
@@ -397,6 +398,7 @@ func (s *Server) detect(w http.ResponseWriter, r *http.Request) {
 		_, exists := merged.Secrets[suggestion.Name]
 		out = append(out, detectView{
 			Name:      suggestion.Name,
+			Value:     suggestion.Value,
 			Service:   suggestion.Service,
 			Sensitive: suggestion.Sensitive,
 			Source:    suggestion.Source,

@@ -321,16 +321,33 @@
   .notice h2 { margin: 0 0 6px; font-size: 16px; }
   .notice p { max-width: 65ch; margin: 0 0 12px; color: var(--text-2); }
   .notice.error { border-color: var(--err); color: var(--err); }
-  .import-options { display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow: auto; }
+  .import-options { display: flex; flex-direction: column; gap: 8px; max-height: 280px; overflow: auto; }
   #dotenvFields, #commandFields { display: flex; flex-direction: column; gap: 16px; }
   .detect-row {
-    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-    padding: 8px 10px; border: 1px solid var(--line-soft); border-radius: 8px;
+    display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: start; gap: 4px 10px;
+    padding: 9px 10px; border: 1px solid var(--line-soft); border-radius: 8px;
   }
-  .detect-row input { flex: none; }
+  .detect-row input { flex: none; margin-top: 3px; }
   .detect-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-  .detect-name { font: 500 12px var(--mono); }
+  .detect-name {
+    font: 500 12px var(--mono);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .detect-meta { display: flex; align-items: center; gap: 6px; min-width: 0; flex-wrap: wrap; }
+  .detect-value {
+    font: 11px var(--mono); color: var(--text-2);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px;
+  }
+  .detect-reveal {
+    display: grid; place-items: center; width: 20px; height: 20px;
+    border: 0; border-radius: 5px; background: transparent; color: var(--text-3); cursor: pointer;
+  }
+  .detect-reveal:hover { color: var(--text); background: var(--panel-2); }
+  .detect-reveal:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   .detect-source { font-size: 10.5px; color: var(--text-3); }
+  .detect-source::before { content: "·"; margin-right: 6px; }
+  .detect-chips { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
   .detect-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
   .detect-row.existing { opacity: .55; }
   .detect-empty { margin: 0; }
@@ -477,6 +494,8 @@
     .row-menu { grid-column: 3; grid-row: 1 / 3; }
     .row-menu > summary { width: 36px; height: 36px; }
     .group-add { width: 30px; height: 30px; }
+    .detect-row { grid-template-columns: auto minmax(0, 1fr); }
+    .detect-chips { grid-column: 2; justify-content: flex-start; }
     .agent { flex-wrap: wrap; }
     .agent-status { margin-left: 40px; }
     .scan-controls { flex-wrap: wrap; }
@@ -728,7 +747,7 @@
         <label class="field">Paste a command
           <textarea id="commandData" spellcheck="false" autocomplete="off" placeholder="modal token set --token-id … --token-secret … --profile=you&#10;modal profile activate you"></textarea>
         </label>
-        <p class="hint">Detects known CLIs and env-style lines. Values stay local and are never shown after this box.</p>
+        <p class="hint">Detects known CLIs and env lines. Sensitive values are masked until revealed; the preview clears when the sheet closes.</p>
         <button class="btn" id="detectBtn" type="button">Detect</button>
         <div class="import-options" id="detectResults" aria-live="polite"></div>
       </div>
@@ -1376,6 +1395,12 @@
     }
   }
 
+  function maskValue(value) {
+    if (!value) return "";
+    if (value.length <= 8) return "••••••••";
+    return value.slice(0, 4) + "…" + value.slice(-4);
+  }
+
   function renderDetections(suggestions) {
     const list = $("detectResults");
     list.textContent = "";
@@ -1391,6 +1416,25 @@
       const input = el("input", { type: "checkbox", value: suggestion.name });
       input.checked = !suggestion.existing;
       input.disabled = !!suggestion.existing;
+      const valueEl = el("code", {
+        class: "detect-value",
+        text: suggestion.sensitive ? maskValue(suggestion.value) : suggestion.value,
+      });
+      let reveal = null;
+      if (suggestion.sensitive) {
+        reveal = el("button", {
+          class: "detect-reveal", type: "button",
+          "aria-label": "Show value", "aria-pressed": "false", title: "Show value",
+        });
+        reveal.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.6"/></svg>';
+        reveal.addEventListener("click", () => {
+          const shown = reveal.getAttribute("aria-pressed") === "true";
+          valueEl.textContent = shown ? maskValue(suggestion.value) : suggestion.value;
+          reveal.setAttribute("aria-pressed", String(!shown));
+          reveal.setAttribute("aria-label", shown ? "Show value" : "Hide value");
+          reveal.title = shown ? "Show value" : "Hide value";
+        });
+      }
       const chips = [
         el("span", { class: "chip", text: suggestion.sensitive ? "secret" : "config" }),
         suggestion.service
@@ -1402,7 +1446,11 @@
         input,
         el("span", { class: "detect-main" }, [
           el("span", { class: "detect-name", text: suggestion.name }),
-          el("span", { class: "detect-source", text: suggestion.source }),
+          el("span", { class: "detect-meta" }, [
+            valueEl,
+            reveal,
+            el("span", { class: "detect-source", text: suggestion.source }),
+          ]),
         ]),
         el("span", { class: "detect-chips" }, chips),
       ]));
@@ -1546,6 +1594,8 @@
     }
     state.sheet = null;
     $("fValue").value = $("fName").value = $("bulkData").value = $("bulkFile").value = $("fGroup").value = "";
+    $("commandData").value = "";
+    $("detectResults").textContent = "";
     $("importNames").textContent = "";
     document.querySelector(".app").inert = false;
     state.opener?.focus();

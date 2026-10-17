@@ -11,7 +11,8 @@ the `0.x` series.
 
 - Detect credentials from pasted commands and env lines (Modal, AWS, generic
   KEY=value), review suggested names, secret/config kinds and groups, and
-  create missing groups on save. Detect responses never include values.
+  create missing groups on save. Sensitive values are masked until revealed
+  for verification; values are never logged or exposed in stored state.
 
 - Secrets are organized into distinct group cards with member counts; each
   group has a quick-add action that preselects it.
