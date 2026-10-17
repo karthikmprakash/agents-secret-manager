@@ -9,6 +9,18 @@ the `0.x` series.
 
 ### Added
 
+- A real CLI experience: plain `sm` opens a status dashboard with actionable
+  next steps, `sm agents` lists detected harnesses and wiring state, and
+  `sm help <command>` documents usage, options and examples. `sm help` groups
+  commands by task, with TTY-aware color, status symbols and `NO_COLOR` support.
+- Shell completion for bash, zsh and fish (`sm completion <shell>`).
+- `sm setup --agent NAME` wires one detected harness; `sm add --group` and
+  `--config` are readable aliases for `--service` and `--sensitive=false`;
+  `sm env --verbose` groups by service and reveals references on request;
+  `sm log --limit N` bounds audit output.
+- CLI recovery operations are now recorded in the same hash-chained audit trail
+  as the UI.
+
 - Fully editable local import review (name, value, group, Secret/Config), local
   same/different-value checks, line warnings, stable entry IDs, and preservation
   of differing duplicate names. Unknown values now default to Secret.

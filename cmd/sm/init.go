@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/karthikmprakash/agents-secret-manager/internal/config"
+	"github.com/karthikmprakash/agents-secret-manager/internal/keys"
 	"github.com/karthikmprakash/agents-secret-manager/internal/manifest"
 	"github.com/karthikmprakash/agents-secret-manager/internal/secrets"
 )
@@ -16,53 +16,58 @@ func cmdInit(args []string) error {
 		return fmt.Errorf("sm init takes no arguments")
 	}
 
+	fmt.Printf("%s %s\n\n", bold("sm init"), dim("· project setup"))
+
 	if err := secrets.Initialize(); err != nil {
 		return err
 	}
-	fmt.Println("vault verified")
+	vaultPath, _ := keys.VaultPath()
+	fmt.Printf("  %s vault ready %s\n", markOK(), dim("· "+shortHome(vaultPath)))
 
-	// 3. Project manifest in the current directory.
 	cwd, err := os.Getwd()
 	if err != nil {
 		return err
 	}
 	mp := filepath.Join(cwd, ".agentsecrets.toml")
 	if _, err := os.Stat(mp); err == nil {
-		fmt.Println("manifest already exists:", mp)
+		fmt.Printf("  %s manifest already exists %s\n", markOK(), dim("· "+shortHome(mp)))
 	} else {
 		if err := os.WriteFile(mp, []byte(manifest.Template(filepath.Base(cwd))), 0o644); err != nil {
 			return err
 		}
-		fmt.Println("created manifest:", mp)
+		fmt.Printf("  %s created manifest %s\n", markOK(), dim("· "+shortHome(mp)))
 	}
 
-	// 4. Keep .env.local out of git.
-	if err := ensureGitignore(cwd); err != nil {
+	added, err := ensureGitignore(cwd)
+	if err != nil {
 		return err
 	}
+	if added {
+		fmt.Printf("  %s updated .gitignore %s\n", markOK(), dim("· .env.local"))
+	} else {
+		fmt.Printf("  %s .gitignore already covers %s\n", markOK(), dim(".env.local"))
+	}
 
-	cfgDir, _ := config.Dir()
-	fmt.Printf("\nconfig dir: %s\n", cfgDir)
-	fmt.Println("\nnext:")
-	fmt.Println("  sm add GITHUB_TOKEN     # prompted; stored encrypted, never on disk in plaintext")
-	fmt.Println("  sm env                  # declared secrets and status — never values")
+	nextBlock("store a secret: "+cyan("sm add GITHUB_TOKEN"),
+		"declare an existing .env: "+cyan("sm import --file .env"),
+		"run with it: "+cyan("sm exec -- <command>"))
 	return nil
 }
 
-func ensureGitignore(dir string) error {
+func ensureGitignore(dir string) (bool, error) {
 	path := filepath.Join(dir, ".gitignore")
 	content, err := os.ReadFile(path)
 	if err != nil && !os.IsNotExist(err) {
-		return err
+		return false, err
 	}
 	for _, line := range strings.Split(string(content), "\n") {
 		if strings.TrimSpace(line) == ".env.local" {
-			return nil
+			return false, nil
 		}
 	}
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer f.Close()
 	prefix := ""
@@ -70,8 +75,7 @@ func ensureGitignore(dir string) error {
 		prefix = "\n"
 	}
 	if _, err := f.WriteString(prefix + ".env.local\n"); err != nil {
-		return err
+		return false, err
 	}
-	fmt.Println("updated .gitignore (.env.local)")
-	return nil
+	return true, nil
 }

@@ -23,29 +23,37 @@ func cmdAdd(args []string) error {
 	scopeFlag := fs.String("scope", "", "comma-separated local scopes (e.g. cmd:gh,cmd:git)")
 	globalFlag := fs.Bool("global", false, "declare in the global manifest (~/.config/sm/manifest.toml) instead of the project")
 	serviceFlag := fs.String("service", "", "group this entry under a service name, e.g. stripe")
+	groupFlag := fs.String("group", "", "alias for --service")
+	configFlag := fs.Bool("config", false, "mark plain config (base URLs, model names): stored and injected, not masked or reported as leaks")
 	sensitiveFlag := fs.Bool("sensitive", true, "false marks plain config (base URLs, model names): stored and injected, not masked or reported as leaks")
-	// Accept the name before or after flags: stdlib flag stops parsing at the
-	// first positional argument, so pull a leading name out first.
-	var name string
-	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
-		name = args[0]
-		args = args[1:]
-	}
-	if err := fs.Parse(args); err != nil {
+	const usage = "usage: sm add NAME [--global] [--group NAME] [--config] [--generate SPEC]"
+	name, err := parseOnePositional(fs, args)
+	if err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
 		}
 		return err
 	}
-	const usage = "usage: sm add NAME [--ref vault://path] [--transport env] [--generate postgres/32] [--scope cmd:gh] [--service stripe] [--sensitive=false]"
-	switch {
-	case name == "" && fs.NArg() == 1:
-		name = fs.Arg(0)
-	case name == "" || fs.NArg() > 0:
+	if name == "" {
 		return fmt.Errorf("%s", usage)
 	}
 	if !manifest.ValidName(name) {
 		return fmt.Errorf("invalid secret name; use letters, digits and underscore")
+	}
+	service := strings.TrimSpace(*serviceFlag)
+	group := strings.TrimSpace(*groupFlag)
+	if service != "" && group != "" && service != group {
+		return fmt.Errorf("--service and --group disagree; use one group name")
+	}
+	if service == "" {
+		service = group
+	}
+	if service != "" && !manifest.ValidService(service) {
+		return fmt.Errorf("invalid group name %q (letters, digits, dot, dash, underscore; max 32)", service)
+	}
+	sensitive := *sensitiveFlag
+	if *configFlag {
+		sensitive = false
 	}
 
 	cwd, err := os.Getwd()
@@ -87,12 +95,9 @@ func cmdAdd(args []string) error {
 		Ref:       ref,
 		Transport: *transportFlag,
 		Generate:  *generateFlag,
-		Service:   strings.TrimSpace(*serviceFlag),
+		Service:   service,
 	}
-	if secret.Service != "" && !manifest.ValidService(secret.Service) {
-		return fmt.Errorf("invalid service name %q (letters, digits, dot, dash, underscore; max 32)", secret.Service)
-	}
-	if !*sensitiveFlag {
+	if !sensitive {
 		no := false
 		secret.Sensitive = &no
 	}
@@ -122,19 +127,22 @@ func cmdAdd(args []string) error {
 		return err
 	}
 
-	extra := ""
+	details := []string{"transport " + secret.Transport}
 	if secret.Service != "" {
-		extra = ", service " + secret.Service
+		details = append(details, "group "+secret.Service)
 	}
 	if !secret.IsSensitive() {
-		extra += ", config (not sensitive)"
+		details = append(details, "config (not sensitive)")
 	}
-	fmt.Printf("stored %s → %s (transport %s%s)\n", name, ref, secret.Transport, extra)
+	fmt.Printf("%s stored %s %s\n", markOK(), bold(name), dim("→ "+ref))
+	fmt.Printf("  %s\n", dim(strings.Join(details, " · ")))
 	if *globalFlag {
-		fmt.Println("updated global manifest:", targetPath)
+		fmt.Printf("  %s\n", dim("global manifest: "+shortHome(targetPath)+" · available in every folder"))
 	} else {
-		fmt.Println("commit the manifest change:", targetPath)
+		fmt.Printf("  %s\n", dim("project manifest: "+shortHome(targetPath)+" · commit it"))
 	}
+	nextBlock("use it: "+cyan("sm exec --only "+name+" -- <command>"),
+		dim("or ask an agent to run a command that needs it"))
 	return nil
 }
 
@@ -142,7 +150,7 @@ func cmdAdd(args []string) error {
 func promptValue(name string) (string, error) {
 	fd := int(os.Stdin.Fd())
 	if term.IsTerminal(fd) {
-		fmt.Fprintf(os.Stderr, "value for %s: ", name)
+		fmt.Fprintf(os.Stderr, "value for %s: ", bold(name))
 		b, err := term.ReadPassword(fd)
 		fmt.Fprintln(os.Stderr)
 		if err != nil {

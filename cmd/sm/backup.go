@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
+	"github.com/karthikmprakash/agents-secret-manager/internal/audit"
 	"github.com/karthikmprakash/agents-secret-manager/internal/config"
 	"github.com/karthikmprakash/agents-secret-manager/internal/keys"
 	"github.com/karthikmprakash/agents-secret-manager/internal/recovery"
@@ -17,7 +19,11 @@ func recoveryPassphrase(confirm bool) (string, error) {
 	if !term.IsTerminal(int(os.Stdin.Fd())) {
 		return "", fmt.Errorf("use a terminal to enter the recovery passphrase (never a command-line argument)")
 	}
-	fmt.Fprint(os.Stderr, "Recovery passphrase: ")
+	if confirm {
+		fmt.Fprint(os.Stderr, "Recovery passphrase (at least 12 characters): ")
+	} else {
+		fmt.Fprint(os.Stderr, "Recovery passphrase: ")
+	}
 	first, err := term.ReadPassword(int(os.Stdin.Fd()))
 	fmt.Fprintln(os.Stderr)
 	if err != nil {
@@ -86,8 +92,24 @@ func cmdBackup(args []string) error {
 		return err
 	}
 	ok = true
-	fmt.Println("Encrypted recovery archive saved. Keep the passphrase separately; project manifests remain in their repositories.")
+	recordLocalRecovery(dir, "backup")
+	fmt.Printf("%s encrypted recovery archive saved\n", markOK())
+	fmt.Printf("  %s\n", dim(shortHome(*out)+" · 0600 · only encrypted bytes"))
+	fmt.Printf("  %s\n", dim("keep the passphrase separately; project manifests remain in their repositories"))
+	nextBlock("verify it now: "+cyan("sm restore --file "+*out+" --verify"),
+		"store a copy off this Mac")
 	return nil
+}
+
+// recordLocalRecovery links a CLI backup/restore into the same audit trail as
+// the UI. Audit failures never invalidate a completed recovery operation.
+func recordLocalRecovery(dir, action string) {
+	_ = audit.Append(dir, audit.Entry{
+		TS:      time.Now().UTC().Format(time.RFC3339),
+		Session: audit.NewSession(),
+		Action:  action,
+		Cmd:     "sm " + action,
+	})
 }
 
 func cmdRestore(args []string) error {
@@ -121,7 +143,9 @@ func cmdRestore(args []string) error {
 		return err
 	}
 	if *verify {
-		fmt.Printf("Archive verified: %d global entries, %d stored values. Nothing changed.\n", contents.Summary().Entries, contents.Summary().StoredValues)
+		summary := contents.Summary()
+		fmt.Printf("%s archive verified %s\n", markOK(), dim(fmt.Sprintf("· %d global entries · %d stored values", summary.Entries, summary.StoredValues)))
+		fmt.Println("  " + dim("nothing changed"))
 		return nil
 	}
 	dir, err := config.Dir()
@@ -144,6 +168,11 @@ func cmdRestore(args []string) error {
 	if err := contents.Restore(dir, id); err != nil {
 		return err
 	}
-	fmt.Println("Recovery complete. Values are encrypted with this machine's identity. Restore project reference manifests separately.")
+	recordLocalRecovery(dir, "restore")
+	fmt.Printf("%s recovery complete\n", markOK())
+	fmt.Printf("  %s\n", dim("values are encrypted with this machine's identity"))
+	nextBlock("project reference manifests restore separately from their repositories",
+		"check the result: "+cyan("sm status"),
+		"run the app: "+cyan("sm ui"))
 	return nil
 }

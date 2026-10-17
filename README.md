@@ -71,7 +71,23 @@ sm ui             # open the local UI (loopback, random per-run token)
 ```
 
 `sm onboard --yes` skips the secret prompts and explicitly opts into wiring all
-detected harnesses. `sm setup --dry-run` previews changes without writing.
+detected harnesses. `sm setup --dry-run` previews changes without writing, and
+`sm setup --agent claude` wires a single detected harness.
+
+## Command line
+
+```sh
+sm                      # dashboard: vault, project, agents, audit, backup, next steps
+sm status               # the same dashboard, explicitly
+sm agents               # detected harnesses and whether each one is wired
+sm help add             # usage, options and examples for one command
+eval "$(sm completion zsh)"   # bash, zsh and fish are supported
+```
+
+`sm` with no arguments shows what is configured and what needs attention rather
+than a wall of usage text. `sm help` groups every command by task. The CLI uses
+color and status symbols only on a terminal; set `NO_COLOR=1` (or
+`SM_NO_COLOR=1`) for plain output.
 
 > No Homebrew formula or signed installer yet. Build from source for now.
 > Moving the binary or app later requires re-running `sm setup`, because agent
@@ -144,12 +160,15 @@ Related values can be grouped, and non-secret config can skip secret treatment:
 
 ```sh
 sm add --global STRIPE_API_KEY  --service stripe
-sm add --global STRIPE_BASE_URL --service stripe --sensitive=false
+sm add --global STRIPE_BASE_URL --service stripe --config
 sm exec --service stripe -- ./app        # injects every member of "stripe"
 
 sm group STRIPE_WEBHOOK_SECRET --service stripe   # move an existing entry
 sm group OLD_VALUE --ungroup
 ```
+
+`--config` is shorthand for `--sensitive=false`, and `--group` is an alias for
+`--service`.
 
 Agents use `secret_run {service: "stripe"}`. Values marked `sensitive=false` are
 still stored, injected and never displayed, but they are **not masked** in
@@ -272,6 +291,20 @@ Templates use `{{sm:NAME}}`. `inject` refuses existing output paths, creates a
 0600 file for the command, and removes it on normal/signal-handled completion.
 Substitution is raw — use the correct quoting for the target format. Cleanup is
 best effort, not guaranteed secure erasure on APFS/SSDs or after `SIGKILL`.
+
+## Check and inspect
+
+```sh
+sm env --verbose          # names, groups, transports, refs and presence — never values
+sm log --limit 20         # recent audit entries
+sm log verify             # check the hash chain
+sm doctor                 # find plaintext copies of registered values
+sm status                 # what needs attention, with concrete next commands
+```
+
+`sm env` groups entries by service and marks each one present or missing. The
+hidden reference column is opt-in because references are implementation detail,
+not something you need to read every day.
 
 ## Security boundaries
 

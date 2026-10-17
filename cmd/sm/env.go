@@ -1,6 +1,8 @@
 package main
 
 import (
+	"errors"
+	"flag"
 	"fmt"
 	"os"
 	"sort"
@@ -11,29 +13,43 @@ import (
 	"github.com/karthikmprakash/agents-secret-manager/internal/store/vaultfile"
 )
 
+type envRow struct {
+	name      string
+	service   string
+	transport string
+	ref       string
+	status    string
+	config    bool
+}
+
 func cmdEnv(args []string) error {
-	if len(args) > 0 {
-		return fmt.Errorf("sm env takes no arguments")
+	fs := flag.NewFlagSet("sm env", flag.ContinueOnError)
+	verbose := fs.Bool("verbose", false, "include each entry's full vault reference")
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return nil
+		}
+		return err
+	}
+	if fs.NArg() > 0 {
+		return fmt.Errorf("usage: sm env [--verbose]")
 	}
 
 	cwd, err := os.Getwd()
 	if err != nil {
 		return err
 	}
-	loaded, err := manifest.LoadLayers(cwd)
+	loaded, err := manifest.LoadOptional(cwd)
 	if err != nil {
 		return err
 	}
-	if loaded.GlobalPath != "" {
-		fmt.Println("global :", loaded.GlobalPath)
-	}
-	if loaded.ProjectPath != "" {
-		fmt.Println("project:", loaded.ProjectPath)
+	if loaded.Global == nil && loaded.Project == nil {
+		fmt.Println(bold("sm env") + dim(" · no secrets declared here"))
+		nextBlock("create a project manifest: "+cyan("sm init"),
+			"or add a global secret: "+cyan("sm add --global NAME"))
+		return nil
 	}
 	merged := loaded.Merged()
-	if merged.Project.Name != "" {
-		fmt.Printf("name   : %s (default_ttl %s)\n", merged.Project.Name, merged.Project.DefaultTTL)
-	}
 
 	identity, err := keys.Get()
 	if err != nil {
@@ -48,9 +64,20 @@ func cmdEnv(args []string) error {
 		return err
 	}
 
+	fmt.Printf("%s %s\n\n", bold("sm env"), dim("· values are never printed"))
+	if loaded.GlobalPath != "" {
+		field("global", shortHome(loaded.GlobalPath))
+	}
+	if loaded.ProjectPath != "" {
+		field("project", shortHome(loaded.ProjectPath))
+	}
+	if merged.Project.Name != "" {
+		field("app", merged.Project.Name)
+	}
+
 	names := make([]string, 0, len(merged.Secrets))
-	for n := range merged.Secrets {
-		names = append(names, n)
+	for name := range merged.Secrets {
+		names = append(names, name)
 	}
 	sort.Slice(names, func(i, j int) bool {
 		si, sj := merged.Secrets[names[i]].Service, merged.Secrets[names[j]].Service
@@ -65,40 +92,117 @@ func cmdEnv(args []string) error {
 		}
 		return names[i] < names[j]
 	})
+	if len(names) == 0 {
+		fmt.Println("  " + markWarn() + " no secrets declared here")
+		nextBlock("add one: " + cyan("sm add NAME"))
+		return nil
+	}
+
+	rows := make([]envRow, 0, len(names))
+	for _, name := range names {
+		secret := merged.Secrets[name]
+		row := envRow{
+			name:      name,
+			service:   secret.Service,
+			transport: secret.Transport,
+			ref:       secret.Ref,
+			config:    !secret.IsSensitive(),
+		}
+		if row.transport == "" {
+			row.transport = "-"
+		}
+		ref, parseErr := manifest.ParseRef(secret.Ref)
+		switch {
+		case parseErr != nil:
+			row.status = "invalid ref"
+		default:
+			_, found, getErr := v.Get(ref.Path)
+			switch {
+			case getErr != nil:
+				row.status = "error"
+			case !found:
+				row.status = "missing"
+			default:
+				row.status = "present"
+			}
+		}
+		rows = append(rows, row)
+	}
 
 	fmt.Println()
-	w := tabwriter.NewWriter(os.Stdout, 2, 4, 2, ' ', 0)
-	fmt.Fprintln(w, "NAME\tSERVICE\tTRANSPORT\tREF\tSTATUS")
-	configCount := 0
-	for _, n := range names {
-		s := merged.Secrets[n]
-		service := s.Service
-		if service == "" {
-			service = "-"
+	present, missing, configCount := 0, 0, 0
+	groups := map[string][]envRow{}
+	var order []string
+	for _, row := range rows {
+		if row.status == "present" {
+			present++
+		} else {
+			missing++
 		}
-		if !s.IsSensitive() {
+		if row.config {
 			configCount++
 		}
-		r, err := manifest.ParseRef(s.Ref)
-		if err != nil {
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", n, service, s.Transport, s.Ref, "invalid ref")
-			continue
+		key := row.service
+		if _, ok := groups[key]; !ok {
+			order = append(order, key)
 		}
-		_, found, err := v.Get(r.Path)
-		status := "present"
-		switch {
-		case err != nil:
-			status = "error: " + err.Error()
-		case !found:
-			status = "missing"
-		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", n, service, s.Transport, s.Ref, status)
+		groups[key] = append(groups[key], row)
 	}
-	w.Flush()
+	sort.Slice(order, func(i, j int) bool {
+		if order[i] == "" {
+			return true
+		}
+		if order[j] == "" {
+			return false
+		}
+		return order[i] < order[j]
+	})
 
-	fmt.Println("\nvalues are never printed")
+	for _, service := range order {
+		label := service
+		if label == "" {
+			label = "ungrouped"
+		}
+		fmt.Printf("%s %s\n", bold(label), dim(fmt.Sprintf("· %d", len(groups[service]))))
+		w := tabwriter.NewWriter(os.Stdout, 2, 4, 2, ' ', 0)
+		if *verbose {
+			fmt.Fprintln(w, "  NAME\tTYPE\tTRANSPORT\tSTATUS\tREF")
+		} else {
+			fmt.Fprintln(w, "  NAME\tTYPE\tTRANSPORT\tSTATUS")
+		}
+		for _, row := range groups[service] {
+			kind := "secret"
+			if row.config {
+				kind = "config"
+			}
+			if *verbose {
+				fmt.Fprintf(w, "  %s\t%s\t%s\t%s\t%s\n", row.name, kind, row.transport, row.status, row.ref)
+			} else {
+				fmt.Fprintf(w, "  %s\t%s\t%s\t%s\n", row.name, kind, row.transport, row.status)
+			}
+		}
+		w.Flush()
+		fmt.Println()
+	}
+
+	summary := fmt.Sprintf("%d declared · %s present", len(rows), green(fmt.Sprint(present)))
+	if missing > 0 {
+		summary += " · " + yellow(fmt.Sprintf("%d missing", missing))
+	}
 	if configCount > 0 {
-		fmt.Printf("%d config value(s) marked sensitive=false (not masked, not reported as leaks)\n", configCount)
+		summary += " · " + fmt.Sprintf("%d config", configCount)
+	}
+	if len(groups) > 1 || (len(groups) == 1 && order[0] != "") {
+		n := len(groups)
+		if _, ok := groups[""]; ok {
+			n--
+		}
+		summary += " · " + quantity(n, "group", "groups")
+	}
+	fmt.Println(summary)
+	if missing > 0 {
+		nextBlock(markWarn()+" restore or rotate the missing entries; names above are safe to share",
+			dim("values are never printed by sm env"))
 	}
 	return nil
 }

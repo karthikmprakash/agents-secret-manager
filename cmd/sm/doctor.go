@@ -55,17 +55,19 @@ func cmdDoctor(args []string) error {
 
 	merged := loaded.Merged()
 	if len(merged.Secrets) == 0 {
-		fmt.Println("No registered secrets to check. Add or import credentials first; this is not a general secret-pattern scanner.")
+		fmt.Println("  " + markWarn() + " no registered secrets to check")
+		fmt.Println(dim("  sm doctor finds copies of values you have already stored — not general API keys in files."))
+		nextBlock("add or import credentials first: " + cyan("sm add --global NAME"))
 		return nil
 	}
 	names := make([]string, 0, len(merged.Secrets))
 	var secrets []scan.Secret
-	for name, s := range merged.Secrets {
-		if !s.IsSensitive() {
+	for name, secret := range merged.Secrets {
+		if !secret.IsSensitive() {
 			continue // config values are not leaks
 		}
 		names = append(names, name)
-		ref, err := manifest.ParseRef(s.Ref)
+		ref, err := manifest.ParseRef(secret.Ref)
 		if err != nil {
 			continue
 		}
@@ -74,6 +76,7 @@ func cmdDoctor(args []string) error {
 		}
 	}
 
+	fmt.Printf("%s %s\n\n", bold("sm doctor"), dim("· scanning for registered values in plaintext"))
 	home, _ := os.UserHomeDir()
 	res := scan.Run(scan.Options{
 		ProjectDir: projectDir,
@@ -82,25 +85,28 @@ func cmdDoctor(args []string) error {
 		NoHistory:  *noHistory,
 	}, secrets, names)
 	for _, warning := range res.Warnings {
-		fmt.Fprintln(os.Stderr, "sm: warning:", warning)
+		fmt.Fprintln(os.Stderr, yellow("sm: warning:"), warning)
 	}
 	if len(res.Warnings) > 0 && len(res.Findings) == 0 {
 		return &exitCodeError{code: 2}
 	}
 
 	if len(res.Findings) == 0 {
-		fmt.Printf("no registered values found in %d scanned files (%d skipped); encoded, rotated and unregistered values may not be detected\n", res.Scanned, res.Skipped)
+		fmt.Printf("%s no registered values found in %d scanned files %s\n", markOK(), res.Scanned, dim(fmt.Sprintf("(%d skipped)", res.Skipped)))
+		fmt.Println(dim("  encoded, rotated and unregistered values may not be detected"))
 		return nil
 	}
 
-	fmt.Printf("%d finding(s) across %d files scanned\n\n", len(res.Findings), res.Scanned)
-	for _, f := range res.Findings {
-		if f.Kind == "value" {
-			fmt.Printf("  %s\n    vault value %s is present in plaintext: %s\n", f.Location, f.Name, f.Snippet)
+	fmt.Printf("%s %s\n\n", markErr(), bold(fmt.Sprintf("%d finding(s) across %d scanned files", len(res.Findings), res.Scanned)))
+	for _, finding := range res.Findings {
+		if finding.Kind == "value" {
+			fmt.Printf("  %s\n    vault value %s is present in plaintext: %s\n", red(finding.Location), bold(finding.Name), finding.Snippet)
 		} else {
-			fmt.Printf("  %s\n    managed name %s is set in plaintext\n", f.Location, f.Name)
+			fmt.Printf("  %s\n    managed name %s is set in plaintext\n", red(finding.Location), bold(finding.Name))
 		}
 	}
-	fmt.Println("\nnext: rotate what was exposed, remove the plaintext copies, then rerun `sm doctor`")
+	nextBlock("rotate what was exposed: "+cyan("sm rotate NAME"),
+		"remove the plaintext copies, then rerun "+cyan("sm doctor"),
+		dim("assuming a leaked value is compromised is cheaper than guessing"))
 	return &exitCodeError{code: 1}
 }

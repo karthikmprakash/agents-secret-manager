@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/karthikmprakash/agents-secret-manager/internal/manifest"
 	"github.com/karthikmprakash/agents-secret-manager/internal/secrets"
@@ -16,26 +15,18 @@ func cmdService(args []string) error {
 	rename := fs.String("rename", "", "new group name (existing destination groups are merged)")
 	ungroup := fs.Bool("ungroup", false, "remove this group label without deleting values")
 	scope := fs.String("scope", "global", "global or project manifest")
-	var name string
-	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
-		name, args = args[0], args[1:]
-	}
-	if err := fs.Parse(args); err != nil {
+	const usage = "usage: sm service NAME --rename NEW|--ungroup [--scope global|project]"
+	name, err := parseOnePositional(fs, args)
+	if err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
 		}
 		return err
 	}
-	if name == "" && fs.NArg() == 1 {
-		name = fs.Arg(0)
-	} else if fs.NArg() != 0 {
-		return fmt.Errorf("usage: sm service NAME --rename NEW|--ungroup [--scope global|project]")
-	}
 	if !manifest.ValidService(name) || (*rename == "" && !*ungroup) || (*rename != "" && *ungroup) {
-		return fmt.Errorf("usage: sm service NAME --rename NEW|--ungroup [--scope global|project]")
+		return fmt.Errorf("%s", usage)
 	}
 	var path string
-	var err error
 	switch *scope {
 	case "global":
 		path, err = manifest.GlobalPath()
@@ -60,9 +51,10 @@ func cmdService(args []string) error {
 		return err
 	}
 	if *ungroup {
-		fmt.Printf("Ungrouped %d entries; no values or references were deleted.\n", len(names))
+		fmt.Printf("%s ungrouped %s %s\n", markOK(), bold(name), dim(fmt.Sprintf("· %d %s", len(names), pluralWord(len(names), "entry", "entries"))))
 	} else {
-		fmt.Printf("Moved %d entries from %s to %s; no values or references changed.\n", len(names), name, *rename)
+		fmt.Printf("%s renamed group %s %s %s\n", markOK(), bold(name), dim("→ "+*rename), dim(fmt.Sprintf("· %d %s", len(names), pluralWord(len(names), "entry", "entries"))))
 	}
+	fmt.Println("  " + dim("no values or references changed · updated "+shortHome(path)+" · commit it"))
 	return nil
 }

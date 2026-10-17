@@ -53,8 +53,7 @@ func cmdConfig(args []string) error {
 		}
 	}
 
-	fmt.Println("sm config — MCP wiring for manual setup (sm setup wires detected harnesses automatically)")
-	fmt.Println()
+	fmt.Printf("%s %s\n\n", bold("sm config"), dim("· manual MCP wiring · sm setup wires detected harnesses automatically"))
 	for _, s := range shown {
 		fmt.Printf("%s (%s)\n", strings.Join(s.Agents, ", "), strings.ToUpper(s.Lang))
 		for _, f := range s.Files {
@@ -64,7 +63,7 @@ func cmdConfig(args []string) error {
 		fmt.Println(s.Body)
 		fmt.Println()
 	}
-	fmt.Println("The command is this machine's absolute path to sm; use each machine's own path.")
-	fmt.Println("Restart the harness afterwards — agents then get secret_list / secret_run.")
+	fmt.Println(dim("The command is this machine's absolute path to sm; use each machine's own path."))
+	fmt.Println(dim("Restart the harness afterwards — agents then get secret_list / secret_run."))
 	return nil
 }

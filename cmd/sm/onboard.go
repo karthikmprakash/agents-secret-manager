@@ -6,15 +6,14 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
 	"golang.org/x/term"
 
+	"github.com/karthikmprakash/agents-secret-manager/internal/keys"
 	"github.com/karthikmprakash/agents-secret-manager/internal/manifest"
 	"github.com/karthikmprakash/agents-secret-manager/internal/secrets"
-	"github.com/karthikmprakash/agents-secret-manager/internal/wireup"
 )
 
 // cmdOnboard is the first-run wizard: vault, secrets, agent wiring, next steps.
@@ -37,24 +36,27 @@ func cmdOnboard(args []string) error {
 	}
 	reader := bufio.NewReader(os.Stdin)
 
-	fmt.Println("sm onboard — one-time setup")
+	fmt.Println(bold("sm onboard") + dim(" — one-time setup, all local"))
 	fmt.Println()
 
+	fmt.Println(heading("[1/4] vault"))
 	if err := secrets.Initialize(); err != nil {
 		return err
 	}
-	fmt.Println("vault verified")
+	vaultPath, _ := keys.VaultPath()
+	fmt.Printf("  %s ready%s\n", markOK(), dim(" · "+shortHome(vaultPath)))
 
-	// 2. Global manifest.
+	fmt.Println()
+	fmt.Println(heading("[2/4] global manifest"))
 	gp, created, err := manifest.EnsureGlobal()
 	if err != nil {
 		return err
 	}
+	note := ""
 	if created {
-		fmt.Println("  ✓ created global manifest", gp)
-	} else {
-		fmt.Println("  ✓ global manifest", gp)
+		note = " (created)"
 	}
+	fmt.Printf("  %s %s%s\n", markOK(), shortHome(gp), dim(note))
 
 	global, err := manifest.Load(gp)
 	if err != nil {
@@ -68,18 +70,18 @@ func cmdOnboard(args []string) error {
 	}
 	sort.Strings(names)
 
-	// 3. Secrets.
 	fmt.Println()
-	fmt.Println("secrets (stored once, available in every folder)")
+	fmt.Println(heading("[3/4] secrets"))
+	fmt.Println(dim("  stored once, available in every folder"))
 	if len(names) > 0 {
-		fmt.Printf("  already declared: %s\n", strings.Join(names, ", "))
+		fmt.Printf("  %s %s\n", dim("already declared:"), strings.Join(names, ", "))
 	}
 	if !interactive {
-		fmt.Println("  skipped — add later with `sm add --global NAME`")
+		fmt.Println("  " + dim("skipped — add later with `sm add --global NAME`"))
 	} else {
 		added := 0
 		for {
-			fmt.Print("  name (blank to finish, e.g. AWS_ACCESS_KEY_ID): ")
+			fmt.Print("  name " + dim("(blank to finish, e.g. AWS_ACCESS_KEY_ID)") + ": ")
 			line, err := reader.ReadString('\n')
 			if err != nil && len(line) == 0 {
 				break
@@ -89,14 +91,14 @@ func cmdOnboard(args []string) error {
 				break
 			}
 			if !envNameOK(name) {
-				fmt.Println("  ! use letters, digits and underscore, starting with a letter or underscore")
+				fmt.Println("  " + markWarn() + " use letters, digits and underscore, starting with a letter or underscore")
 				continue
 			}
 			if existing[name] {
-				fmt.Printf("  ! %s is already declared — use `sm rotate %s` to change it\n", name, name)
+				fmt.Printf("  %s %s is already declared — use `sm rotate %s` to change it\n", markWarn(), name, name)
 				continue
 			}
-			fmt.Printf("  value for %s (hidden): ", name)
+			fmt.Printf("  value for %s %s: ", bold(name), dim("(hidden)"))
 			raw, err := term.ReadPassword(int(os.Stdin.Fd()))
 			fmt.Println()
 			if err != nil {
@@ -104,7 +106,7 @@ func cmdOnboard(args []string) error {
 			}
 			value := string(raw)
 			if value == "" {
-				fmt.Println("  skipped (empty value)")
+				fmt.Println("  " + dim("skipped (empty value)"))
 				continue
 			}
 			ref := manifest.DefaultRef(gp, name)
@@ -113,37 +115,29 @@ func cmdOnboard(args []string) error {
 			}
 			existing[name] = true
 			added++
-			fmt.Printf("  ✓ stored %s → %s\n", name, ref)
+			fmt.Printf("  %s stored %s %s\n", markOK(), bold(name), dim("→ "+ref))
 		}
 		if added == 0 {
-			fmt.Println("  no secrets added — add later with `sm add --global NAME`")
+			fmt.Println("  " + dim("no secrets added — add later with `sm add --global NAME`"))
 		}
 	}
 
-	// 4. Agents.
 	fmt.Println()
-	fmt.Println("agents")
-	exe, err := os.Executable()
+	fmt.Println(heading("[4/4] agents"))
+	targets, err := detectAgentTargets()
 	if err != nil {
 		return err
 	}
-	if resolved, rerr := filepath.EvalSymlinks(exe); rerr == nil {
-		exe = resolved
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return err
-	}
-	targets := wireup.Detect(exe, home)
 	failed := 0
 	if len(targets) == 0 {
-		fmt.Println("  no supported agents detected")
+		fmt.Println("  " + markWarn() + " no supported harnesses detected")
+		fmt.Println("  " + dim("manual wiring: sm config"))
 	} else {
 		label := make([]string, len(targets))
-		for i, t := range targets {
-			label[i] = t.Name
+		for i, target := range targets {
+			label[i] = target.Name
 		}
-		fmt.Printf("  detected: %s\n", strings.Join(label, ", "))
+		fmt.Printf("  %s %s\n", dim("detected:"), strings.Join(label, ", "))
 		configure := true
 		if interactive {
 			fmt.Print("  configure all? [Y/n] ")
@@ -151,35 +145,36 @@ func cmdOnboard(args []string) error {
 			configure = !strings.HasPrefix(strings.ToLower(strings.TrimSpace(answer)), "n")
 		}
 		if !configure {
-			fmt.Println("  skipped — run `sm setup` any time")
+			fmt.Println("  " + dim("skipped — run `sm setup` any time"))
 		} else {
-			for _, t := range targets {
-				status, err := t.Apply()
-				if err != nil {
-					fmt.Printf("  !! %-14s %v\n", t.Name, err)
+			for _, target := range targets {
+				status, applyErr := target.Apply()
+				if applyErr != nil {
+					fmt.Printf("  %s %-13s %s\n", markErr(), target.Name, red(applyErr.Error()))
 					failed++
 					continue
 				}
-				fmt.Printf("  ✓ %-14s %s\n", t.Name, status)
+				fmt.Printf("  %s %-13s %s\n", markOK(), target.Name, status)
 			}
 		}
 	}
 
-	// 5. Next steps.
 	fmt.Println()
-	if len(existing) == 0 {
-		fmt.Println("add secrets once, then every agent can use them:")
-		fmt.Println("  sm add --global AWS_ACCESS_KEY_ID")
-		fmt.Println("  sm add --global AWS_SECRET_ACCESS_KEY")
-		fmt.Println()
-	}
 	if failed > 0 {
-		return fmt.Errorf("vault is ready, but %d harness configurations failed; run sm setup to retry", failed)
+		fmt.Println("  " + markWarn() + " the vault is ready, but some harness configurations failed")
+		return fmt.Errorf("%s — run `sm setup` to retry", quantity(failed, "harness configuration failed", "harness configurations failed"))
 	}
-	fmt.Println("done. reconnect or restart your agents, then try:")
-	fmt.Println("  ask any agent: \"what secrets do you have?\"")
-	fmt.Println("  ask: \"run aws s3 ls\"")
-	fmt.Println("  shell: sm exec -- <command>")
+	fmt.Println("  " + markOK() + " " + bold("done") + dim(" — reconnect or restart your agents"))
+	lines := []string{
+		dim("ask any agent: ") + `"what secrets do you have?"`,
+		dim("ask: ") + `"run aws s3 ls"`,
+		dim("shell: ") + cyan("sm exec -- <command>"),
+	}
+	if len(existing) == 0 {
+		lines = append([]string{dim("add secrets once: ") + cyan("sm add --global NAME")}, lines...)
+	}
+	lines = append(lines, dim("see what needs attention: ")+cyan("sm status"))
+	nextBlock(lines...)
 	return nil
 }
 

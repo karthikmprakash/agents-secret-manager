@@ -25,14 +25,31 @@ func cmdImport(args []string) error {
 	dryRun := fs.Bool("dry-run", false, "print the plan without changing anything")
 	globalFlag := fs.Bool("global", false, "declare in the global manifest (~/.config/sm/manifest.toml) instead of the project")
 	serviceFlag := fs.String("service", "", "group the imported entries under a service name, e.g. stripe")
+	groupFlag := fs.String("group", "", "alias for --service")
+	configFlag := fs.Bool("config", false, "mark imported values as plain config (alias for --sensitive=false)")
 	sensitiveFlag := fs.Bool("sensitive", true, "false marks the imported entries as plain config (not masked, not reported as leaks)")
-	if err := fs.Parse(args); err != nil {
+	keyArgs, err := parseFlagsAndArgs(fs, args)
+	if err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
 		}
 		return err
 	}
-	keyArgs := fs.Args()
+	service := strings.TrimSpace(*serviceFlag)
+	group := strings.TrimSpace(*groupFlag)
+	if service != "" && group != "" && service != group {
+		return fmt.Errorf("--service and --group disagree; use one group name")
+	}
+	if service == "" {
+		service = group
+	}
+	if service != "" && !manifest.ValidService(service) {
+		return fmt.Errorf("invalid group name %q (letters, digits, dot, dash, underscore; max 32)", service)
+	}
+	sensitive := *sensitiveFlag
+	if *configFlag {
+		sensitive = false
+	}
 
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -137,14 +154,10 @@ func cmdImport(args []string) error {
 			return err
 		}
 	}
-	service := strings.TrimSpace(*serviceFlag)
-	if service != "" && !manifest.ValidService(service) {
-		return fmt.Errorf("invalid service name %q (letters, digits, dot, dash, underscore; max 32)", service)
-	}
-	var sensitive *bool
-	if !*sensitiveFlag {
+	var sensitivePtr *bool
+	if !sensitive {
 		no := false
-		sensitive = &no
+		sensitivePtr = &no
 	}
 	refs := map[string]string{}
 	inputs := make([]secrets.Input, 0, len(toImport))
@@ -152,7 +165,7 @@ func cmdImport(args []string) error {
 		inputs = append(inputs, secrets.Input{
 			Name:   k,
 			Value:  parsed[k],
-			Secret: manifest.Secret{Service: service, Sensitive: sensitive},
+			Secret: manifest.Secret{Service: service, Sensitive: sensitivePtr},
 		})
 		refs[k] = "sm://" + k
 	}
@@ -163,12 +176,15 @@ func cmdImport(args []string) error {
 		return err
 	}
 
-	fmt.Printf("imported %d secret(s) into the vault — %s now holds sm:// refs\n", len(toImport), path)
+	fmt.Printf("%s imported %s into the vault\n", markOK(), bold(fmt.Sprintf("%d %s", len(toImport), pluralWord(len(toImport), "value", "values"))))
+	fmt.Printf("  %s\n", dim(shortHome(path)+" now holds sm:// refs"))
 	if *globalFlag {
-		fmt.Println("updated global manifest:", targetPath)
+		fmt.Printf("  %s\n", dim("global manifest: "+shortHome(targetPath)))
 	} else {
-		fmt.Println("commit the manifest change:", targetPath)
+		fmt.Printf("  %s\n", dim("project manifest: "+shortHome(targetPath)+" · commit it"))
 	}
+	nextBlock("use them: "+cyan("sm exec -- <command>"),
+		dim("check the declared entries: ")+cyan("sm env"))
 	return nil
 }
 
