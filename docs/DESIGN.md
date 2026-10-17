@@ -233,4 +233,9 @@ internal/broker/   v0.3 · daemon · HTTPS_PROXY egress injection
   Hermes (`mcp_servers.sm` in `~/.hermes/config.yaml`), Cursor
   (`~/.cursor/mcp.json`), Claude Desktop, Gemini CLI and Windsurf (JSON
   `mcpServers`). File edits keep a `.sm-backup`. Idempotent.
+- `sm onboard [--yes]`: first-run wizard. Creates the Keychain identity and
+  vault, creates the global manifest, stores global secrets interactively
+  (hidden input), then wires every detected harness via the same detection as
+  `sm setup`. `--yes` skips prompts; bare `sm` shows a first-run banner while
+  no identity exists.
 - `sm doctor` also scans `~/.hermes/config.yaml` and `~/.hermes/.env`.

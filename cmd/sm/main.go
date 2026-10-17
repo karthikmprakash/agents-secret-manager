@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+
+	"github.com/karthikmprakash/agents-secret-manager/internal/keys"
 )
 
 const version = "0.2.0-dev"
@@ -17,6 +19,8 @@ func main() {
 
 	var err error
 	switch os.Args[1] {
+	case "onboard":
+		err = cmdOnboard(os.Args[2:])
 	case "init":
 		err = cmdInit(os.Args[2:])
 	case "add":
@@ -62,9 +66,15 @@ func main() {
 }
 
 func usage() {
+	if !keys.Exists() {
+		fmt.Println("First time here? Run `sm onboard` — it creates the vault, offers to store")
+		fmt.Println("secrets, and connects every agent harness it finds.")
+		fmt.Println()
+	}
 	fmt.Print(`sm — secrets and environment manager for agents
 
 usage:
+  sm onboard [--yes]      first-run wizard: vault, secrets, agent wiring
   sm init                 create the vault identity, config dir and a project manifest
   sm add NAME [flags]     store a secret and declare it in .agentsecrets.toml
   sm import [flags]       move plaintext .env values into the vault, leave sm:// refs

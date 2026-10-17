@@ -3,27 +3,34 @@
 Secrets and environment manager for AI agents — local-first, `.env`-native.
 Values never enter the model's context; the repo carries a manifest of references.
 
-**v0.1 complete (M0–M5).** Design frozen in [docs/DESIGN.md](docs/DESIGN.md).
+**v0.1 complete; v0.2 adds the MCP server, auto-setup and onboarding.**
+Design frozen in [docs/DESIGN.md](docs/DESIGN.md).
 
 ## Quickstart
 
 ```sh
-go build -o sm ./cmd/sm
-./sm init                 # vault identity (Keychain) + project manifest
-./sm add GITHUB_TOKEN     # prompted; stored encrypted, never on disk in plaintext
-./sm add --global DEEPSEEK_API_KEY
-                          # model key shared by every project / agent
-./sm import .env          # or migrate an existing .env (interactive; --all for all)
-./sm env                  # declared secrets, transports and status — never values
-./sm exec -- npm test     # child process gets vault secrets + .env refs
-./sm inject --tpl config.tpl --out config.json -- npm start
-                          # render {{sm:NAME}} → 0600 file, shred on exit
-./sm rotate GITHUB_TOKEN  # new value; every ref keeps working
-./sm doctor               # find plaintext copies: rc files, transcripts, git history
-./sm log verify           # audit trail + hash chain
+go build -o ~/.local/bin/sm ./cmd/sm
 
-./sm setup                # detect installed agents, wire the MCP server into each (one time)
-                          # after this, agents see secret_list / secret_run — no per-folder setup
+sm onboard                # first run: creates the vault, offers to store secrets,
+                          # detects every agent harness and wires the MCP server in
+                          # (non-interactive: sm onboard --yes)
+
+# everyday
+sm add --global AWS_ACCESS_KEY_ID   # stored once, usable in every folder
+sm exec -- aws s3 ls                # child gets secrets; values never printed
+sm doctor                           # find plaintext copies: rc files, transcripts, git history
+sm setup                            # re-wire agents after installing a new harness
+```
+
+Per-project (optional):
+
+```sh
+sm init                  # project manifest (.agentsecrets.toml)
+sm import .env           # migrate plaintext values into the vault, leave sm:// refs
+sm env                   # declared secrets, status — never values
+sm inject --tpl config.tpl --out config.json -- npm start
+sm rotate GITHUB_TOKEN   # new value; every ref keeps working
+sm log verify            # audit trail + hash chain
 ```
 
 `.env` can reference declared secrets by name:
