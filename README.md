@@ -17,6 +17,8 @@ sm onboard                # first run: creates the vault, offers to store secret
 
 # everyday
 sm add --global AWS_ACCESS_KEY_ID   # stored once, usable in every folder
+sm import --global --file creds.env --all
+                                    # bulk-add a set; the file becomes sm:// refs
 sm exec -- aws s3 ls                # child gets secrets; values never printed
 sm doctor                           # find plaintext copies: rc files, transcripts, git history
 sm setup                            # re-wire agents after installing a new harness

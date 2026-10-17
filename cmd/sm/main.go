@@ -98,7 +98,8 @@ flags for add:
                           instead of the project — available to every project
 
 flags for import:
-  --file PATH             dotenv file to migrate (default .env, relative to project root)
+  --file PATH             dotenv file to migrate (default .env)
+  --global                declare in the global manifest instead of the project
   --all                   import every plaintext entry without prompting
   --dry-run               print the plan without changing anything
   (positional KEYs import just those entries)

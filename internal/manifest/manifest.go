@@ -117,6 +117,28 @@ func GlobalPath() (string, error) {
 	return filepath.Join(dir, "manifest.toml"), nil
 }
 
+// EnsureGlobal creates the global manifest with a header when it does not
+// exist. created reports whether the file was written.
+func EnsureGlobal() (path string, created bool, err error) {
+	gp, err := GlobalPath()
+	if err != nil {
+		return "", false, err
+	}
+	if _, statErr := os.Stat(gp); statErr == nil {
+		return gp, false, nil
+	} else if !os.IsNotExist(statErr) {
+		return "", false, statErr
+	}
+	if err := os.MkdirAll(filepath.Dir(gp), 0o700); err != nil {
+		return "", false, err
+	}
+	header := "# global manifest — shared across projects; no values, ever\n[secrets]\n"
+	if err := os.WriteFile(gp, []byte(header), 0o644); err != nil {
+		return "", false, err
+	}
+	return gp, true, nil
+}
+
 // FindProject walks up from start looking for the nearest .agentsecrets.toml.
 func FindProject(start string) (string, bool) {
 	dir, err := filepath.Abs(start)

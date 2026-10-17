@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"golang.org/x/term"
@@ -65,17 +64,9 @@ func cmdAdd(args []string) error {
 
 	var targetPath string
 	if *globalFlag {
-		gp, err := manifest.GlobalPath()
+		gp, _, err := manifest.EnsureGlobal()
 		if err != nil {
 			return err
-		}
-		if _, statErr := os.Stat(gp); os.IsNotExist(statErr) {
-			if err := os.MkdirAll(filepath.Dir(gp), 0o700); err != nil {
-				return err
-			}
-			if err := os.WriteFile(gp, []byte("# global manifest — shared across projects; no values, ever\n[secrets]\n"), 0o644); err != nil {
-				return err
-			}
 		}
 		targetPath = gp
 	} else {

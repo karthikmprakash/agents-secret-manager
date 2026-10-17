@@ -75,18 +75,11 @@ func cmdOnboard(args []string) error {
 	}
 
 	// 2. Global manifest.
-	gp, err := manifest.GlobalPath()
+	gp, created, err := manifest.EnsureGlobal()
 	if err != nil {
 		return err
 	}
-	if _, err := os.Stat(gp); os.IsNotExist(err) {
-		if err := os.MkdirAll(filepath.Dir(gp), 0o700); err != nil {
-			return err
-		}
-		header := "# global manifest — shared across projects; no values, ever\n[secrets]\n"
-		if err := os.WriteFile(gp, []byte(header), 0o644); err != nil {
-			return err
-		}
+	if created {
 		fmt.Println("  ✓ created global manifest", gp)
 	} else {
 		fmt.Println("  ✓ global manifest", gp)

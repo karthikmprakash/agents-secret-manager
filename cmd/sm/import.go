@@ -20,9 +20,10 @@ import (
 
 func cmdImport(args []string) error {
 	fs := flag.NewFlagSet("sm import", flag.ContinueOnError)
-	file := fs.String("file", ".env", "dotenv file to migrate (relative to the project root)")
+	file := fs.String("file", ".env", "dotenv file to migrate (relative to the project root, or the current directory with --global)")
 	all := fs.Bool("all", false, "import every plaintext entry without prompting")
 	dryRun := fs.Bool("dry-run", false, "print the plan without changing anything")
+	globalFlag := fs.Bool("global", false, "declare in the global manifest (~/.config/sm/manifest.toml) instead of the project")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
@@ -37,16 +38,19 @@ func cmdImport(args []string) error {
 	}
 	loaded, err := manifest.LoadLayers(cwd)
 	if err != nil {
-		return err
+		if !*globalFlag {
+			return err
+		}
+		loaded = &manifest.Loaded{}
 	}
-	if loaded.Project == nil {
-		return fmt.Errorf("no project manifest found — run `sm init` first")
-	}
-	projectDir := filepath.Dir(loaded.ProjectPath)
 
+	baseDir := cwd
+	if loaded.ProjectPath != "" {
+		baseDir = filepath.Dir(loaded.ProjectPath)
+	}
 	path := *file
 	if !filepath.IsAbs(path) {
-		path = filepath.Join(projectDir, path)
+		path = filepath.Join(baseDir, path)
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -55,6 +59,20 @@ func cmdImport(args []string) error {
 	parsed, err := resolve.ParseDotenv(data)
 	if err != nil {
 		return fmt.Errorf("%s: %w", path, err)
+	}
+
+	var targetPath string
+	if *globalFlag {
+		gp, _, err := manifest.EnsureGlobal()
+		if err != nil {
+			return err
+		}
+		targetPath = gp
+	} else {
+		if loaded.Project == nil {
+			return fmt.Errorf("no project manifest found — run `sm init` first (or use --global)")
+		}
+		targetPath = loaded.ProjectPath
 	}
 
 	merged := loaded.Merged()
@@ -71,6 +89,10 @@ func cmdImport(args []string) error {
 	case *all:
 		selected = resolve.Keys(data)
 	default:
+		if *dryRun {
+			selected = resolve.Keys(data)
+			break
+		}
 		if !term.IsTerminal(int(os.Stdin.Fd())) {
 			return fmt.Errorf("no TTY: pass --all or name the keys to import")
 		}
@@ -146,7 +168,7 @@ func cmdImport(args []string) error {
 			if err := v.Set(r.Path, value); err != nil {
 				return err
 			}
-			if err := manifest.AppendSecret(loaded.ProjectPath, k, manifest.Secret{Ref: ref, Transport: manifest.TransportEnv}); err != nil {
+			if err := manifest.AppendSecret(targetPath, k, manifest.Secret{Ref: ref, Transport: manifest.TransportEnv}); err != nil {
 				return err
 			}
 		}
@@ -158,7 +180,11 @@ func cmdImport(args []string) error {
 	}
 
 	fmt.Printf("imported %d secret(s) into the vault — %s now holds sm:// refs\n", len(toImport), path)
-	fmt.Println("commit the manifest change:", loaded.ProjectPath)
+	if *globalFlag {
+		fmt.Println("updated global manifest:", targetPath)
+	} else {
+		fmt.Println("commit the manifest change:", targetPath)
+	}
 	return nil
 }
 

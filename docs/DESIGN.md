@@ -200,10 +200,11 @@ internal/broker/   v0.3 · daemon · HTTPS_PROXY egress injection
   and truncation from the middle are detectable; truncation of the tail and
   edits to the last line are not (no external anchor). Command lines are
   redacted against injected values before writing.
-- `sm import [--file .env] [--all] [--dry-run] [KEY...]`: interactive by
-  default; selected plaintext entries move into the vault and the file is
-  rewritten to `NAME=sm://NAME`. Already-declared secrets keep the vault value
-  (a differing `.env` value warns and is discarded).
+- `sm import [--file .env] [--global] [--all] [--dry-run] [KEY...]`:
+  interactive by default; selected plaintext entries move into the vault and the
+  file is rewritten to `NAME=sm://NAME`. `--global` targets the global manifest
+  (bulk-add shared secrets). Already-declared secrets keep the vault value (a
+  differing `.env` value warns and is discarded).
 - `sm doctor [--no-history] [--depth N]`: scans project `.env*`, shell rc
   files, agent transcripts (`~/.claude/**/*.jsonl`, `~/.codex/**/*.jsonl`,
   `~/.cursor/projects/*/agent-transcripts/*.jsonl`), MCP configs

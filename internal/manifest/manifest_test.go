@@ -151,3 +151,27 @@ func TestAppendSecret(t *testing.T) {
 		t.Error("quoted key missing after append")
 	}
 }
+
+func TestEnsureGlobal(t *testing.T) {
+	cfg := t.TempDir()
+	t.Setenv("SM_CONFIG_DIR", cfg)
+
+	p, created, err := EnsureGlobal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !created {
+		t.Error("expected created=true on first call")
+	}
+	if _, err := Load(p); err != nil {
+		t.Fatalf("global manifest is not valid TOML: %v", err)
+	}
+
+	p2, created2, err := EnsureGlobal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created2 || p2 != p {
+		t.Errorf("second call = %q, created=%v; want %q, false", p2, created2, p)
+	}
+}
