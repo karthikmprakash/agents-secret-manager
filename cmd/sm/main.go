@@ -7,7 +7,7 @@ import (
 	"os"
 )
 
-const version = "0.1.0-dev (M4)"
+const version = "0.1.0"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -27,8 +27,12 @@ func main() {
 		err = cmdEnv(os.Args[2:])
 	case "exec":
 		err = cmdExec(os.Args[2:])
+	case "inject":
+		err = cmdInject(os.Args[2:])
 	case "doctor":
 		err = cmdDoctor(os.Args[2:])
+	case "rotate":
+		err = cmdRotate(os.Args[2:])
 	case "log":
 		err = cmdLog(os.Args[2:])
 	case "version", "--version", "-v":
@@ -62,7 +66,10 @@ usage:
   sm import [flags]       move plaintext .env values into the vault, leave sm:// refs
   sm env                  show declared secrets, transports and status (never values)
   sm exec [flags] -- CMD  run CMD with manifest secrets and .env refs resolved
+  sm inject [flags] -- CMD
+                          render a template to a 0600 file, run CMD, shred on exit
   sm doctor [flags]       scan rc files, transcripts, MCP configs and git history for leaks
+  sm rotate NAME [flags]  replace a stored value; every ref keeps working
   sm log [verify]         show the audit trail, or verify its hash chain
   sm version              print version
 
@@ -84,8 +91,16 @@ flags for exec:
                           (auto: on when output is not a terminal)
   -v, --verbose           print what was resolved (names only)
 
+flags for inject:
+  --tpl PATH              template with {{sm:NAME}} placeholders
+  --out PATH              output file (0600, shredded when the command exits)
+  -v, --verbose           print what was materialized (names only)
+
 flags for doctor:
   --no-history            skip git history
   --depth N               max commits to scan (default 500)
+
+flags for rotate:
+  --generate SPEC         generate the new value: [profile/]length
 `)
 }

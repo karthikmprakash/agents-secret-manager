@@ -58,7 +58,7 @@ func cmdAdd(args []string) error {
 		return fmt.Errorf("no project manifest found — run `sm init` first")
 	}
 	if _, exists := loaded.Merged().Secrets[name]; exists {
-		return fmt.Errorf("secret %s is already declared (rotation arrives in M5)", name)
+		return fmt.Errorf("secret %s is already declared — use `sm rotate %s`", name, name)
 	}
 
 	ref := *refFlag

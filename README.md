@@ -3,9 +3,7 @@
 Secrets and environment manager for AI agents — local-first, `.env`-native.
 Values never enter the model's context; the repo carries a manifest of references.
 
-Status: **M0–M4** — skeleton, manifest, local vault, resolver + `sm exec`,
-output redaction, hash-chained audit, import + doctor.
-Design frozen in [docs/DESIGN.md](docs/DESIGN.md).
+**v0.1 complete (M0–M5).** Design frozen in [docs/DESIGN.md](docs/DESIGN.md).
 
 ## Quickstart
 
@@ -16,6 +14,9 @@ go build -o sm ./cmd/sm
 ./sm import .env          # or migrate an existing .env (interactive; --all for all)
 ./sm env                  # declared secrets, transports and status — never values
 ./sm exec -- npm test     # child process gets vault secrets + .env refs
+./sm inject --tpl config.tpl --out config.json -- npm start
+                          # render {{sm:NAME}} → 0600 file, shred on exit
+./sm rotate GITHUB_TOKEN  # new value; every ref keeps working
 ./sm doctor               # find plaintext copies: rc files, transcripts, git history
 ./sm log verify           # audit trail + hash chain
 ```
@@ -48,4 +49,5 @@ internal/generate/ --generate profiles
 internal/redact/   streaming value redaction
 internal/audit/    hash-chained JSONL audit log
 internal/scan/     doctor: rc files, transcripts, MCP configs, git history
+internal/tpl/      template rendering, 0600 materialization, shred
 ```

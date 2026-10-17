@@ -211,3 +211,11 @@ internal/broker/   v0.3 · daemon · HTTPS_PROXY egress injection
   (added lines, default 500 commits). Reports vault values found in plaintext
   (redacted snippets) and managed names assigned in plaintext; exits 1 when
   anything is found.
+- `sm inject --tpl T --out O -- CMD`: renders `{{sm:NAME}}` placeholders from
+  declared secrets (`proxy` transport refused), writes O atomically at mode
+  0600, runs CMD with signal forwarding, then overwrites and removes O. Child
+  stdout/stderr are redacted against the materialized values. Audit action
+  `materialize`, written before the file exists (fails closed).
+- `sm rotate NAME [--generate SPEC]`: replaces the stored value; refs and the
+  manifest are untouched, so every surface picks it up on the next run. Audit
+  action `rotate`. `sm add` on an existing name now points at rotate.
