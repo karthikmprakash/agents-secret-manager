@@ -11,6 +11,8 @@ Values never enter the model's context; the repo carries a manifest of reference
 go build -o sm ./cmd/sm
 ./sm init                 # vault identity (Keychain) + project manifest
 ./sm add GITHUB_TOKEN     # prompted; stored encrypted, never on disk in plaintext
+./sm add --global DEEPSEEK_API_KEY
+                          # model key shared by every project / agent
 ./sm import .env          # or migrate an existing .env (interactive; --all for all)
 ./sm env                  # declared secrets, transports and status — never values
 ./sm exec -- npm test     # child process gets vault secrets + .env refs

@@ -219,3 +219,7 @@ internal/broker/   v0.3 · daemon · HTTPS_PROXY egress injection
 - `sm rotate NAME [--generate SPEC]`: replaces the stored value; refs and the
   manifest are untouched, so every surface picks it up on the next run. Audit
   action `rotate`. `sm add` on an existing name now points at rotate.
+- `sm add --global NAME`: writes the declaration to
+  `~/.config/sm/manifest.toml`, which is merged underneath every project —
+  the way to store model API keys used by every agent (the global manifest is
+  created on demand).

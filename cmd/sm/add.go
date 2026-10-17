@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"golang.org/x/term"
@@ -22,6 +23,7 @@ func cmdAdd(args []string) error {
 	transportFlag := fs.String("transport", manifest.TransportEnv, "delivery transport: env, file, proxy or generated")
 	generateFlag := fs.String("generate", "", "generate the value instead of prompting: [profile/]length, e.g. postgres/32")
 	scopeFlag := fs.String("scope", "", "comma-separated local scopes (e.g. cmd:gh,cmd:git)")
+	globalFlag := fs.Bool("global", false, "declare in the global manifest (~/.config/sm/manifest.toml) instead of the project")
 	// Accept the name before or after flags: stdlib flag stops parsing at the
 	// first positional argument, so pull a leading name out first.
 	var name string
@@ -52,13 +54,35 @@ func cmdAdd(args []string) error {
 	}
 	loaded, err := manifest.LoadLayers(cwd)
 	if err != nil {
-		return err
-	}
-	if loaded.Project == nil {
-		return fmt.Errorf("no project manifest found — run `sm init` first")
+		if !*globalFlag {
+			return err
+		}
+		loaded = &manifest.Loaded{}
 	}
 	if _, exists := loaded.Merged().Secrets[name]; exists {
 		return fmt.Errorf("secret %s is already declared — use `sm rotate %s`", name, name)
+	}
+
+	var targetPath string
+	if *globalFlag {
+		gp, err := manifest.GlobalPath()
+		if err != nil {
+			return err
+		}
+		if _, statErr := os.Stat(gp); os.IsNotExist(statErr) {
+			if err := os.MkdirAll(filepath.Dir(gp), 0o700); err != nil {
+				return err
+			}
+			if err := os.WriteFile(gp, []byte("# global manifest — shared across projects; no values, ever\n[secrets]\n"), 0o644); err != nil {
+				return err
+			}
+		}
+		targetPath = gp
+	} else {
+		if loaded.Project == nil {
+			return fmt.Errorf("no project manifest found — run `sm init` first (or use --global)")
+		}
+		targetPath = loaded.ProjectPath
 	}
 
 	ref := *refFlag
@@ -116,12 +140,16 @@ func cmdAdd(args []string) error {
 		return fmt.Errorf("write vault: %w", err)
 	}
 
-	if err := manifest.AppendSecret(loaded.ProjectPath, name, secret); err != nil {
+	if err := manifest.AppendSecret(targetPath, name, secret); err != nil {
 		return fmt.Errorf("value stored at %s but manifest update failed: %w", ref, err)
 	}
 
 	fmt.Printf("stored %s → %s (transport %s)\n", name, ref, secret.Transport)
-	fmt.Println("commit the manifest change:", loaded.ProjectPath)
+	if *globalFlag {
+		fmt.Println("updated global manifest:", targetPath)
+	} else {
+		fmt.Println("commit the manifest change:", targetPath)
+	}
 	return nil
 }
 

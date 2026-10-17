@@ -78,6 +78,8 @@ flags for add:
   --transport T           env | file | proxy | generated (default env)
   --generate SPEC         generate the value instead of prompting: [profile/]length
   --scope LIST            comma-separated local scopes, e.g. cmd:gh,cmd:git
+  --global                declare in the global manifest (~/.config/sm/manifest.toml)
+                          instead of the project — available to every project
 
 flags for import:
   --file PATH             dotenv file to migrate (default .env, relative to project root)
