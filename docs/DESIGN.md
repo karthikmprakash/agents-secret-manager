@@ -182,3 +182,11 @@ internal/broker/   v0.3 · daemon · HTTPS_PROXY egress injection
 - Identity: Keychain service `sm`, account `identity`; `SM_IDENTITY`
   (AGE-SECRET-KEY-1…) overrides the Keychain for CI and throwaway runs.
 - Module: `github.com/karthikmprakash/agents-secret-manager`.
+- `sm exec [--profile NAME] [-v] -- <cmd>`: `.env` files are read from the
+  project root (the manifest's directory; cwd when only the global manifest
+  exists). Precedence: `.env` < `.env.<profile>` < `.env.local` < process env.
+- Managed names: a differing plaintext value (from `.env` or the process env)
+  refuses to run unless `SM_ALLOW_PLAINTEXT=1`; empty and identical values are
+  allowed (identical values keep nested `sm exec` calls working).
+- dotenv (v0.1): `KEY=VALUE`, optional `export `, `#` comments, single/double
+  quoted values, no variable expansion. Inline comments start at ` #`.
