@@ -9,6 +9,9 @@ the `0.x` series.
 
 ### Added
 
+- A developer-focused README and [user guide](docs/GUIDE.md): problem, quick
+  start, MCP surface, supported harnesses, import behavior, recovery, security
+  boundaries and honest alternatives, with a current UI screenshot.
 - A real CLI experience: plain `sm` opens a status dashboard with actionable
   next steps, `sm agents` lists detected harnesses and wiring state, and
   `sm help <command>` documents usage, options and examples. `sm help` groups

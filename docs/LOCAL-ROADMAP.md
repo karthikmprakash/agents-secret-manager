@@ -36,6 +36,10 @@ They are proposals, not implemented guarantees.
    processes or defending against arbitrary same-user code.
 7. **Power-user navigation.** Command palette, saved service filters and bulk
    organization, while keeping raw credentials off the clipboard by default.
+8. **Entry lifecycle and metadata.** Explicit rename/delete with confirmation,
+   deliberate handling of shared vault paths, and local notes/tags/URLs for
+   humans. Deleting a declaration must never silently orphan or remove a value
+   another project still references.
 
 ## Constraints
 
