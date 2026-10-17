@@ -369,6 +369,28 @@
   .scope-note { font-size: 10.5px; color: var(--text-3); }
   .value-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
   .group-pick { display: flex; flex-direction: column; gap: 12px; }
+  .combo { position: relative; }
+  .combo input { width: 100%; padding-right: 32px; }
+  .combo-caret { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); display: flex; color: var(--text-3); pointer-events: none; }
+  .combo-caret svg { transition: transform .15s ease; }
+  .combo.open .combo-caret svg { transform: rotate(180deg); }
+  .combo-menu {
+    position: absolute; left: 0; right: 0; top: calc(100% + 5px); z-index: 6;
+    max-height: 210px; overflow: auto; padding: 4px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    box-shadow: var(--shadow-menu);
+  }
+  .combo.up .combo-menu { top: auto; bottom: calc(100% + 5px); }
+  .combo-item {
+    display: block; width: 100%; padding: 7px 9px; text-align: left;
+    border: 0; border-radius: 6px; background: transparent;
+    color: var(--text); font-size: 12.5px; cursor: pointer;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .combo-item:hover, .combo-item.active { background: var(--panel-2); }
+  .combo-item.create { color: var(--text-2); }
+  .combo-item.create::before { content: "+ "; color: var(--text-3); }
+  .combo-item[aria-selected="true"] { font-weight: 600; }
   .flabel { font: 600 10.5px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
   .seg.mini { padding: 2px; border-radius: 8px; }
   .seg.mini .seg-btn { flex: none; padding: 3px 10px; font-size: 11px; border-radius: 6px; }
@@ -607,9 +629,15 @@
     </div>
     <div id="groupWrap" hidden>
       <label class="field">Group
-        <input id="fGroup" list="groupOptions" placeholder="stripe" autocomplete="off" spellcheck="false">
+        <div class="combo" id="groupCombo">
+          <input id="fGroup" placeholder="stripe" autocomplete="off" spellcheck="false"
+                 role="combobox" aria-expanded="false" aria-controls="groupMenu" aria-autocomplete="list" aria-label="Group">
+          <span class="combo-caret" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          </span>
+          <div class="combo-menu" id="groupMenu" role="listbox" aria-label="Groups" hidden></div>
+        </div>
       </label>
-      <datalist id="groupOptions"></datalist>
     </div>
 
     <div id="valueHead" class="value-head">
@@ -654,13 +682,15 @@
 
     <div id="addGroupRow" class="group-pick">
       <label class="field">Group
-        <select id="fGroupChoice" aria-label="Group">
-          <option value="">No group</option>
-        </select>
-      </label>
-      <label class="field" id="newGroupWrap" hidden>New group name
-        <input id="fNewGroup" placeholder="stripe" autocomplete="off" spellcheck="false">
-        <small>Letters, digits, dot, dash, underscore — max 32.</small>
+        <div class="combo up" id="groupComboAdd">
+          <input id="fGroupAdd" placeholder="No group" autocomplete="off" spellcheck="false"
+                 role="combobox" aria-expanded="false" aria-controls="groupMenuAdd" aria-autocomplete="list" aria-label="Group">
+          <span class="combo-caret" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          </span>
+          <div class="combo-menu" id="groupMenuAdd" role="listbox" aria-label="Groups" hidden></div>
+        </div>
+        <small>Optional. Type a new name to create a group.</small>
       </label>
     </div>
 
@@ -1210,33 +1240,90 @@
     }
   }
 
-  function populateGroupChoices(selected = "") {
-    const sel = $("fGroupChoice");
-    sel.textContent = "";
-    sel.append(el("option", { value: "", text: "No group" }));
-    const groups = Array.from(new Set((state.data?.secrets || []).map((s) => s.service).filter(Boolean))).sort();
-    for (const group of groups) sel.append(el("option", { value: group, text: group }));
-    sel.append(el("option", { value: "__new__", text: "New group…" }));
-    sel.value = selected && selected !== "__new__" ? selected : "";
-    updateGroupChoice();
-  }
+  function attachGroupCombo(input, menu, opts = {}) {
+    let items = [];
+    let active = -1;
+    const combo = input.closest(".combo");
+    const groups = () => Array.from(new Set((state.data?.secrets || []).map((s) => s.service).filter(Boolean))).sort();
 
-  function updateGroupChoice() {
-    const isNew = $("fGroupChoice").value === "__new__";
-    $("newGroupWrap").hidden = !isNew;
-    if (!isNew) {
-      $("fNewGroup").value = "";
-    } else {
-      setTimeout(() => $("fNewGroup").focus(), 30);
+    function close() {
+      menu.hidden = true;
+      input.setAttribute("aria-expanded", "false");
+      input.removeAttribute("aria-activedescendant");
+      combo.classList.remove("open");
+      active = -1;
     }
+
+    function choose(index) {
+      const item = items[index];
+      if (!item) return;
+      input.value = item.value;
+      close();
+    }
+
+    function render(useFilter = true) {
+      const typed = input.value.trim();
+      const q = useFilter ? typed.toLowerCase() : "";
+      const existing = groups();
+      const noneLabel = opts.noneLabel || "No group";
+      items = [];
+      menu.textContent = "";
+      if (opts.allowNone && (!q || noneLabel.toLowerCase().includes(q))) items.push({ value: "", label: noneLabel });
+      for (const group of existing) {
+        if (!q || group.toLowerCase().includes(q)) items.push({ value: group, label: group });
+      }
+      if (useFilter && typed && !existing.some((g) => g.toLowerCase() === q)) {
+        items.push({ value: typed, label: "Create “" + typed + "”", create: true });
+      }
+      items.forEach((item, index) => {
+        const row = el("button", {
+          class: "combo-item" + (item.create ? " create" : ""),
+          type: "button",
+          role: "option",
+          id: menu.id + "-" + index,
+          "aria-selected": String(input.value === item.value),
+          text: item.label,
+        });
+        row.addEventListener("mousedown", (event) => { event.preventDefault(); choose(index); });
+        menu.append(row);
+      });
+      menu.hidden = items.length === 0;
+      input.setAttribute("aria-expanded", String(!menu.hidden));
+      combo.classList.toggle("open", !menu.hidden);
+    }
+
+    input.addEventListener("focus", () => render(false));
+    input.addEventListener("input", () => render(true));
+    input.addEventListener("click", () => { if (menu.hidden) render(false); });
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !menu.hidden) {
+        event.preventDefault();
+        event.stopPropagation();
+        close();
+        return;
+      }
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        if (menu.hidden) render(false);
+        const rows = Array.from(menu.querySelectorAll(".combo-item"));
+        if (!rows.length) return;
+        event.preventDefault();
+        active = (active + (event.key === "ArrowDown" ? 1 : -1) + rows.length) % rows.length;
+        rows.forEach((row, index) => row.classList.toggle("active", index === active));
+        input.setAttribute("aria-activedescendant", rows[active].id);
+      } else if (event.key === "Enter" && !menu.hidden && active >= 0) {
+        event.preventDefault();
+        choose(active);
+      }
+    });
+    input.addEventListener("blur", () => setTimeout(close, 120));
+    document.addEventListener("click", (event) => {
+      if (!combo.contains(event.target)) close();
+    });
   }
 
   function openAddSheet(group = "") {
     openSheet("add");
-    if (group) {
-      $("fGroupChoice").value = group;
-      updateGroupChoice();
-    }
+    if (group) $("fGroupAdd").value = group;
   }
 
   function setKind(kind) {
@@ -1313,12 +1400,6 @@
     $("rotateName").textContent = secret?.name || "";
     $("groupWrap").hidden = !group;
     $("fGroup").value = secret?.service || "";
-    if (group) {
-      const dl = $("groupOptions");
-      dl.textContent = "";
-      const names = Array.from(new Set((state.data?.secrets || []).map((s) => s.service).filter(Boolean))).sort();
-      for (const svc of names) dl.append(el("option", { value: svc }));
-    }
     $("scopeRow").hidden = mode !== "add";
     $("kindRow").hidden = mode !== "add";
     $("addGroupRow").hidden = mode !== "add";
@@ -1328,7 +1409,7 @@
     $("revealValue").setAttribute("aria-label", "Show value");
     $("revealValue").setAttribute("aria-pressed", "false");
     renderNameMeta();
-    populateGroupChoices("");
+    $("fGroupAdd").value = "";
     $("fGenerateProfile").value = "hex";
     $("fGenerateLength").value = "32";
     $("formError").hidden = true;
@@ -1449,18 +1530,11 @@
       }
       body.name = name;
       body.scope = state.scope;
-      const choice = $("fGroupChoice").value;
-      const group = choice === "__new__" ? $("fNewGroup").value.trim() : choice;
-      if (choice === "__new__" && !group) {
-        error.textContent = "Enter a group name, or choose No group.";
-        error.hidden = false;
-        $("fNewGroup").focus();
-        return;
-      }
+      const group = $("fGroupAdd").value.trim();
       if (group && !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,31}$/.test(group)) {
         error.textContent = "Group names use letters, digits, dot, dash, underscore (max 32).";
         error.hidden = false;
-        $("fNewGroup").focus();
+        $("fGroupAdd").focus();
         return;
       }
       body.service = group;
@@ -1554,7 +1628,8 @@
   $("addBtn").addEventListener("click", () => openAddSheet());
   $("importBtn").addEventListener("click", () => openSheet("import"));
   $("emptyAdd").addEventListener("click", () => openAddSheet());
-  $("fGroupChoice").addEventListener("change", updateGroupChoice);
+  attachGroupCombo($("fGroup"), $("groupMenu"), { allowNone: true, noneLabel: "Ungroup" });
+  attachGroupCombo($("fGroupAdd"), $("groupMenuAdd"), { allowNone: true, noneLabel: "No group" });
   $("emptyClear").addEventListener("click", () => {
     state.filter = "";
     $("filter").value = "";

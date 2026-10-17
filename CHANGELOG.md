@@ -13,6 +13,8 @@ the `0.x` series.
   group has a quick-add action that preselects it.
 - The add-secret sheet asks for a group: assign an existing one, create a new
   one inline, or leave it ungrouped.
+- Group pickers are a styled combobox with filtering, keyboard navigation and
+  an explicit create-new row, replacing the native datalist/select popups.
 
 ## [0.3.0] - 2026-10-17
 
