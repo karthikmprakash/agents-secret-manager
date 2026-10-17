@@ -190,3 +190,13 @@ internal/broker/   v0.3 · daemon · HTTPS_PROXY egress injection
   allowed (identical values keep nested `sm exec` calls working).
 - dotenv (v0.1): `KEY=VALUE`, optional `export `, `#` comments, single/double
   quoted values, no variable expansion. Inline comments start at ` #`.
+- Redaction: injected values are masked in the child's stdout/stderr as
+  `[redacted:NAME]`, longest-first, safe across write boundaries.
+  `--redact auto` (default) redacts when stdout or stderr is not a TTY;
+  `always`/`never` override.
+- Audit: `~/.config/sm/audit.jsonl`, mode 0600, append-only JSONL, flock-
+  serialized. Each line carries the SHA-256 of the previous line. `sm log`
+  lists entries; `sm log verify` walks the chain. Interior edits, reordering
+  and truncation from the middle are detectable; truncation of the tail and
+  edits to the last line are not (no external anchor). Command lines are
+  redacted against injected values before writing.

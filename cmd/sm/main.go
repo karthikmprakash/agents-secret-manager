@@ -7,7 +7,7 @@ import (
 	"os"
 )
 
-const version = "0.1.0-dev (M2)"
+const version = "0.1.0-dev (M3)"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -25,6 +25,8 @@ func main() {
 		err = cmdEnv(os.Args[2:])
 	case "exec":
 		err = cmdExec(os.Args[2:])
+	case "log":
+		err = cmdLog(os.Args[2:])
 	case "version", "--version", "-v":
 		fmt.Println("sm", version)
 		return
@@ -55,6 +57,7 @@ usage:
   sm add NAME [flags]     store a secret and declare it in .agentsecrets.toml
   sm env                  show declared secrets, transports and status (never values)
   sm exec [flags] -- CMD  run CMD with manifest secrets and .env refs resolved
+  sm log [verify]         show the audit trail, or verify its hash chain
   sm version              print version
 
 flags for add:
@@ -65,6 +68,8 @@ flags for add:
 
 flags for exec:
   --profile NAME          load .env.<profile> between .env and .env.local
+  --redact MODE           redact secret values in child output: auto | always | never
+                          (auto: on when output is not a terminal)
   -v, --verbose           print what was resolved (names only)
 `)
 }

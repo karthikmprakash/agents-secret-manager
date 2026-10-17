@@ -35,11 +35,13 @@ type Options struct {
 
 // Result is the resolved child environment.
 type Result struct {
-	Env       []string // KEY=VALUE pairs, sorted
-	Injected  []string // manifest secret names injected (sorted)
-	DotenvRef []string // env vars bound via sm:// refs (sorted)
-	Files     []string // .env files read, lowest precedence first
-	FromFiles int      // vars sourced from .env files
+	Env       []string          // KEY=VALUE pairs, sorted
+	Injected  []string          // manifest secret names injected (sorted)
+	DotenvRef []string          // env vars bound via sm:// refs (sorted)
+	Files     []string          // .env files read, lowest precedence first
+	FromFiles int               // vars sourced from .env files
+	Secrets   []string          // logical secret names used (sorted); safe to log
+	Values    map[string]string // env var → injected value; never log
 	Warnings  []string
 }
 
@@ -219,6 +221,16 @@ func Build(loaded *manifest.Loaded, st Getter, projectDir string, opts Options) 
 		res.DotenvRef = append(res.DotenvRef, k)
 	}
 	sort.Strings(res.DotenvRef)
+
+	res.Values = values
+	used := map[string]bool{}
+	for _, secretName := range bindings {
+		used[secretName] = true
+	}
+	for s := range used {
+		res.Secrets = append(res.Secrets, s)
+	}
+	sort.Strings(res.Secrets)
 
 	// Warn about sm:// declarations beaten by higher-precedence plaintext.
 	var shadowKeys []string

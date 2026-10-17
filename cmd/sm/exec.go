@@ -4,13 +4,20 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"golang.org/x/term"
+
+	"github.com/karthikmprakash/agents-secret-manager/internal/audit"
+	"github.com/karthikmprakash/agents-secret-manager/internal/config"
 	"github.com/karthikmprakash/agents-secret-manager/internal/keys"
 	"github.com/karthikmprakash/agents-secret-manager/internal/manifest"
+	"github.com/karthikmprakash/agents-secret-manager/internal/redact"
 	"github.com/karthikmprakash/agents-secret-manager/internal/resolve"
 	"github.com/karthikmprakash/agents-secret-manager/internal/store/vaultfile"
 )
@@ -25,6 +32,7 @@ func cmdExec(args []string) error {
 	profile := fs.String("profile", "", "load .env.<profile> between .env and .env.local")
 	verbose := fs.Bool("v", false, "print what was resolved (names only)")
 	verboseLong := fs.Bool("verbose", false, "print what was resolved (names only)")
+	redactMode := fs.String("redact", "auto", "redact secret values in child output: auto | always | never")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
@@ -33,7 +41,12 @@ func cmdExec(args []string) error {
 	}
 	cmdArgs := fs.Args()
 	if len(cmdArgs) == 0 {
-		return fmt.Errorf("usage: sm exec [--profile NAME] [-v] -- <command> [args...]")
+		return fmt.Errorf("usage: sm exec [--profile NAME] [--redact MODE] [-v] -- <command> [args...]")
+	}
+	switch *redactMode {
+	case "auto", "always", "never":
+	default:
+		return fmt.Errorf("invalid --redact mode %q (want auto, always or never)", *redactMode)
 	}
 
 	cwd, err := os.Getwd()
@@ -75,6 +88,40 @@ func cmdExec(args []string) error {
 	for _, w := range res.Warnings {
 		fmt.Fprintln(os.Stderr, "sm: warning:", w)
 	}
+
+	// Redact when output leaves the terminal (auto), or as told.
+	useRedact := *redactMode == "always"
+	if *redactMode == "auto" {
+		useRedact = !term.IsTerminal(int(os.Stdout.Fd())) || !term.IsTerminal(int(os.Stderr.Fd()))
+	}
+
+	var outW io.Writer = os.Stdout
+	var errW io.Writer = os.Stderr
+	var flushes []func() error
+	labels := labelByValue(res.Values)
+	if useRedact {
+		o := redact.New(os.Stdout, labels)
+		e := redact.New(os.Stderr, labels)
+		outW, errW = o, e
+		flushes = append(flushes, o.Flush, e.Flush)
+	}
+
+	auditDir, err := config.Dir()
+	if err != nil {
+		return err
+	}
+	entry := audit.Entry{
+		TS:      time.Now().UTC().Format(time.RFC3339),
+		Session: audit.NewSession(),
+		Cmd:     redact.String(strings.Join(cmdArgs, " "), labels),
+		Secrets: res.Secrets,
+		Action:  "inject",
+		CWD:     cwd,
+	}
+	if err := audit.Append(auditDir, entry); err != nil {
+		return fmt.Errorf("append audit log: %w", err)
+	}
+
 	if *verbose || *verboseLong {
 		if loaded.ProjectPath != "" {
 			fmt.Fprintln(os.Stderr, "sm: manifest", loaded.ProjectPath)
@@ -89,24 +136,54 @@ func cmdExec(args []string) error {
 			fmt.Fprintln(os.Stderr, "sm: refs", strings.Join(res.DotenvRef, ", "))
 		}
 		fmt.Fprintf(os.Stderr, "sm: %d vars from .env files\n", res.FromFiles)
+		fmt.Fprintf(os.Stderr, "sm: session %s · audit %s\n", entry.Session, audit.Path(auditDir))
+		fmt.Fprintf(os.Stderr, "sm: redaction %s\n", onOff(useRedact))
 	}
 
 	child := exec.Command(cmdArgs[0], cmdArgs[1:]...)
 	child.Env = res.Env
 	child.Stdin = os.Stdin
-	child.Stdout = os.Stdout
-	child.Stderr = os.Stderr
+	child.Stdout = outW
+	child.Stderr = errW
 
-	if err := child.Run(); err != nil {
+	runErr := child.Run()
+	for _, flush := range flushes {
+		if ferr := flush(); ferr != nil && runErr == nil {
+			runErr = ferr
+		}
+	}
+
+	if runErr != nil {
 		var ee *exec.ExitError
-		if errors.As(err, &ee) {
+		if errors.As(runErr, &ee) {
 			code := ee.ExitCode()
 			if code < 0 {
 				code = 1
 			}
 			return &exitCodeError{code: code}
 		}
-		return fmt.Errorf("run %s: %w", cmdArgs[0], err)
+		return fmt.Errorf("run %s: %w", cmdArgs[0], runErr)
 	}
 	return nil
+}
+
+// labelByValue maps each injected value to a display name for redaction.
+func labelByValue(values map[string]string) map[string]string {
+	out := map[string]string{}
+	for envName, v := range values {
+		if v == "" {
+			continue
+		}
+		if prev, ok := out[v]; !ok || envName < prev {
+			out[v] = envName
+		}
+	}
+	return out
+}
+
+func onOff(b bool) string {
+	if b {
+		return "on"
+	}
+	return "off"
 }
