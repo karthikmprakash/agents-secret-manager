@@ -2,7 +2,21 @@
 /sm
 /bin/
 /dist/
+*.test
+coverage.out
 
 # local env overrides (may contain plaintext)
+.env
+.env.*
+!.env.example
 .env.local
+
+# sm runtime artifacts
 *.toml.lock
+*.sm-backup
+*.sm-lock
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/

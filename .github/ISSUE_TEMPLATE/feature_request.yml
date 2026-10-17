@@ -1,0 +1,42 @@
+name: Feature request
+description: Suggest a capability, adapter or UX improvement
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: Describe the workflow, not just the solution.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How should it work? Include commands, config or UI sketches.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - New harness adapter
+        - Secret resolution / delivery
+        - MCP tools
+        - CLI
+        - Web UI / Mac app
+        - Security / policy
+        - Docs
+    validations:
+      required: true
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      options:
+        - label: This does not require storing or displaying secret values in the model context
+        - label: I have read the security boundaries in the README

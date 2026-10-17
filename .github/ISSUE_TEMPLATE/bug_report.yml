@@ -1,0 +1,59 @@
+name: Bug report
+description: Something behaves incorrectly or unexpectedly
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. **Do not include real credentials, tokens or vault
+        contents.** Redact paths and values. For security issues, use the
+        Security tab instead of a public issue.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. sm add --global ...
+        2. sm exec -- ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Output of `sm version`, macOS version, harness and version.
+      placeholder: |
+        sm version:
+        macOS:
+        Harness:
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where did it happen?
+      options:
+        - CLI
+        - MCP server (agent tools)
+        - Web UI / Mac app
+        - Agent wiring (sm setup)
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I did not include any real credentials or personal data
+          required: true
