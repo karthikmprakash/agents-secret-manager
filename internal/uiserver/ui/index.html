@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>sm — secrets for agents</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #161921;
+    --border: #262b36;
+    --text: #e8eaf0;
+    --muted: #9aa3b2;
+    --faint: #6b7484;
+    --accent: #6aa5ff;
+    --ok: #63c98a;
+    --warn: #e3b341;
+    --err: #f07178;
+    --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f6f7f9; --panel: #ffffff; --border: #e2e5ea; --text: #171a20;
+      --muted: #5b6472; --faint: #8a93a1; --accent: #2563eb;
+      --ok: #1a7f4b; --warn: #9a6b00; --err: #c0392b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif;
+  }
+  header {
+    display: flex; align-items: center; gap: 16px;
+    padding: 16px 24px; border-bottom: 1px solid var(--border);
+  }
+  .mark {
+    font-family: var(--mono); font-weight: 700; font-size: 18px;
+    background: var(--text); color: var(--bg); border-radius: 6px; padding: 1px 8px;
+  }
+  .sub { color: var(--muted); margin-left: 8px; }
+  .meta { margin-left: auto; color: var(--faint); font-family: var(--mono); font-size: 11px; text-align: right; }
+  main {
+    display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(300px, 1fr);
+    gap: 20px; padding: 20px 24px 40px; max-width: 1200px; margin: 0 auto;
+  }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .col { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+  .card { border: 1px solid var(--border); background: var(--panel); border-radius: 10px; }
+  .card-head {
+    display: flex; align-items: baseline; gap: 10px;
+    padding: 12px 16px; border-bottom: 1px solid var(--border);
+  }
+  h2 { font-size: 13px; margin: 0; font-weight: 600; }
+  .hint, .count { color: var(--faint); font-size: 11px; }
+  .count { margin-left: auto; font-family: var(--mono); }
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    text-align: left; font-size: 11px; color: var(--faint); font-weight: 500;
+    padding: 8px 16px; border-bottom: 1px solid var(--border);
+  }
+  td { padding: 9px 16px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; }
+  tr:last-child td { border-bottom: 0; }
+  .name { font-family: var(--mono); font-size: 12.5px; }
+  .badge {
+    display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 999px;
+    border: 1px solid var(--border); color: var(--muted);
+  }
+  .badge.present { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, var(--border)); }
+  .badge.missing { color: var(--err); border-color: color-mix(in srgb, var(--err) 40%, var(--border)); }
+  button {
+    font: inherit; font-size: 12.5px; padding: 5px 12px; border-radius: 7px;
+    border: 1px solid var(--border); background: transparent; color: var(--text); cursor: pointer;
+  }
+  button:hover { border-color: var(--faint); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  button.primary:hover { filter: brightness(1.08); }
+  button.small { padding: 3px 9px; font-size: 11.5px; }
+  button:disabled { opacity: .5; cursor: default; }
+  form { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+  label { display: flex; flex-direction: column; gap: 5px; font-size: 11.5px; color: var(--muted); }
+  input, select {
+    font: inherit; font-size: 13px; color: var(--text); background: var(--bg);
+    border: 1px solid var(--border); border-radius: 7px; padding: 7px 9px; outline: none;
+  }
+  input:focus, select:focus { border-color: var(--accent); }
+  input[type=checkbox] { width: auto; margin-right: 6px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .msg { margin: 0; min-height: 16px; font-size: 12px; color: var(--muted); }
+  .msg.err { color: var(--err); }
+  .empty { color: var(--faint); font-size: 12.5px; padding: 14px 16px; margin: 0; }
+  .audit { list-style: none; margin: 0; padding: 4px 0; }
+  .audit li {
+    display: flex; gap: 10px; padding: 7px 16px; font-size: 11.5px;
+    color: var(--muted); border-bottom: 1px solid var(--border);
+  }
+  .audit li:last-child { border-bottom: 0; }
+  .audit .ts { color: var(--faint); font-family: var(--mono); flex: none; }
+  .audit .cmd { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); }
+  .audit .act { flex: none; color: var(--faint); }
+  .out {
+    display: none; margin: 0 16px 14px; padding: 10px; max-height: 220px; overflow: auto;
+    font: 11.5px/1.5 var(--mono); color: var(--muted);
+    background: var(--bg); border: 1px solid var(--border); border-radius: 7px; white-space: pre-wrap;
+  }
+  .out.show { display: block; }
+  .stack { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+  .check { flex-direction: row; align-items: center; color: var(--muted); }
+  dialog {
+    background: var(--panel); color: var(--text); border: 1px solid var(--border);
+    border-radius: 12px; padding: 0; width: 340px;
+  }
+  dialog::backdrop { background: rgba(0,0,0,.45); }
+  dialog form { padding: 16px; }
+  .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+  .toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(10px);
+    background: var(--panel); border: 1px solid var(--border); color: var(--text);
+    padding: 8px 14px; border-radius: 8px; font-size: 12.5px; opacity: 0; pointer-events: none;
+    transition: opacity .15s ease, transform .15s ease;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<header>
+  <div><span class="mark">sm</span><span class="sub">secrets for agents</span></div>
+  <div class="meta" id="meta"></div>
+  <button class="small" id="refresh">Refresh</button>
+</header>
+
+<main>
+  <section class="col">
+    <div class="card">
+      <div class="card-head"><h2>Secrets</h2><span class="count" id="count"></span></div>
+      <table>
+        <thead><tr><th>Name</th><th>Scope</th><th>Transport</th><th>Status</th><th></th></tr></thead>
+        <tbody id="secrets"></tbody>
+      </table>
+      <p class="empty" id="empty">No secrets yet — add one on the right.</p>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>Audit</h2><span class="hint">names only · newest first</span></div>
+      <ul class="audit" id="audit"></ul>
+      <p class="empty" id="auditEmpty">No activity yet.</p>
+    </div>
+  </section>
+
+  <aside class="col">
+    <div class="card">
+      <div class="card-head"><h2>Add secret</h2></div>
+      <form id="addForm">
+        <label>Name <input id="name" placeholder="AWS_ACCESS_KEY_ID" autocomplete="off" spellcheck="false"></label>
+        <label>Value <input id="value" type="password" placeholder="hidden" autocomplete="new-password"></label>
+        <div class="row">
+          <label>Scope <select id="scope"><option value="global">global</option><option value="project">project</option></select></label>
+          <label>Transport <select id="transport"><option value="env">env</option><option value="file">file</option></select></label>
+        </div>
+        <label>Or generate <input id="generate" placeholder="hex/32 (optional)" autocomplete="off" spellcheck="false"></label>
+        <button class="primary" type="submit">Store secret</button>
+        <p class="msg" id="addMsg"></p>
+      </form>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Agents</h2></div>
+      <div class="stack">
+        <p class="hint" style="margin:0">Wire the MCP server into every detected harness. No keys go into their configs.</p>
+        <div><button id="wire">Wire detected agents</button></div>
+        <pre class="out" id="wireOut"></pre>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Leak scan</h2></div>
+      <div class="stack">
+        <label class="check"><input type="checkbox" id="history"> include git history</label>
+        <div><button id="scan">Run doctor</button></div>
+        <pre class="out" id="scanOut"></pre>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<dialog id="rotateDialog">
+  <form method="dialog" id="rotateForm">
+    <label>New value for <span class="name" id="rotateName"></span>
+      <input id="rotateValue" type="password" autocomplete="new-password">
+    </label>
+    <div class="dialog-actions">
+      <button value="cancel" type="button" id="rotateCancel">Cancel</button>
+      <button class="primary" value="ok" type="submit">Rotate</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const params = new URLSearchParams(location.search);
+const token = params.get("token") || "";
+if (token) history.replaceState({}, "", "/");
+
+async function api(path, options = {}) {
+  const res = await fetch(path, {
+    ...options,
+    headers: { ...(options.headers || {}), Authorization: "Bearer " + token },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
+}
+
+const $ = (id) => document.getElementById(id);
+let state = null;
+let rotateTarget = null;
+
+function toast(text) {
+  const t = $("toast");
+  t.textContent = text;
+  t.classList.add("show");
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove("show"), 2200);
+}
+
+function badge(text, cls) {
+  const span = document.createElement("span");
+  span.className = "badge " + (cls || "");
+  span.textContent = text;
+  return span;
+}
+
+function render(s) {
+  state = s;
+  $("meta").textContent = (s.vault || "") + (s.projectManifest ? " · " + s.projectManifest : "");
+  $("count").textContent = s.secrets.length + " total";
+
+  const tbody = $("secrets");
+  tbody.textContent = "";
+  for (const sec of s.secrets) {
+    const tr = document.createElement("tr");
+
+    const tdName = document.createElement("td");
+    tdName.className = "name";
+    tdName.textContent = sec.name;
+
+    const tdScope = document.createElement("td");
+    tdScope.appendChild(badge(sec.scope));
+
+    const tdTransport = document.createElement("td");
+    tdTransport.appendChild(badge(sec.transport));
+
+    const tdStatus = document.createElement("td");
+    tdStatus.appendChild(badge(sec.status, sec.status === "present" ? "present" : sec.status === "missing" ? "missing" : ""));
+
+    const tdAction = document.createElement("td");
+    tdAction.style.textAlign = "right";
+    const btn = document.createElement("button");
+    btn.className = "small";
+    btn.textContent = "Rotate";
+    btn.addEventListener("click", () => openRotate(sec.name));
+    tdAction.appendChild(btn);
+
+    tr.append(tdName, tdScope, tdTransport, tdStatus, tdAction);
+    tbody.appendChild(tr);
+  }
+  $("empty").style.display = s.secrets.length ? "none" : "block";
+
+  const projectOption = $("scope").querySelector('option[value="project"]');
+  projectOption.disabled = !s.projectManifest;
+
+  const audit = $("audit");
+  audit.textContent = "";
+  for (const e of (s.audit || [])) {
+    const li = document.createElement("li");
+    const ts = document.createElement("span");
+    ts.className = "ts";
+    ts.textContent = e.ts.slice(11, 19);
+    const act = document.createElement("span");
+    act.className = "act";
+    act.textContent = e.action;
+    const cmd = document.createElement("span");
+    cmd.className = "cmd";
+    cmd.textContent = e.cmd || (e.secrets || []).join(", ");
+    li.append(ts, act, cmd);
+    audit.appendChild(li);
+  }
+  $("auditEmpty").style.display = (s.audit || []).length ? "none" : "block";
+}
+
+async function refresh() {
+  try {
+    render(await api("/api/state"));
+  } catch (err) {
+    toast("Could not load state: " + err.message);
+  }
+}
+
+$("refresh").addEventListener("click", refresh);
+
+$("addForm").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const msg = $("addMsg");
+  msg.className = "msg";
+  msg.textContent = "Storing…";
+  try {
+    await api("/api/add", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: $("name").value.trim(),
+        value: $("value").value,
+        scope: $("scope").value,
+        transport: $("transport").value,
+        generate: $("generate").value.trim(),
+      }),
+    });
+    msg.textContent = "Stored. Agents see it on their next call.";
+    $("value").value = "";
+    $("generate").value = "";
+    toast("Secret stored");
+    await refresh();
+  } catch (err) {
+    msg.className = "msg err";
+    msg.textContent = err.message;
+  }
+});
+
+function openRotate(name) {
+  rotateTarget = name;
+  $("rotateName").textContent = name;
+  $("rotateValue").value = "";
+  $("rotateDialog").showModal();
+  $("rotateValue").focus();
+}
+
+$("rotateCancel").addEventListener("click", () => $("rotateDialog").close());
+
+$("rotateForm").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  if (!rotateTarget) return;
+  try {
+    await api("/api/rotate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: rotateTarget, value: $("rotateValue").value }),
+    });
+    $("rotateDialog").close();
+    toast("Rotated " + rotateTarget);
+    await refresh();
+  } catch (err) {
+    toast(err.message);
+  }
+});
+
+$("wire").addEventListener("click", async () => {
+  const out = $("wireOut");
+  out.classList.add("show");
+  out.textContent = "Detecting agents…";
+  try {
+    const res = await api("/api/setup", { method: "POST" });
+    out.textContent = res.output;
+    toast(res.exit === 0 ? "Agents wired" : "Some agents failed");
+  } catch (err) {
+    out.textContent = err.message;
+  }
+});
+
+$("scan").addEventListener("click", async () => {
+  const out = $("scanOut");
+  out.classList.add("show");
+  out.textContent = "Scanning…";
+  try {
+    const res = await api("/api/doctor", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ history: $("history").checked }),
+    });
+    out.textContent = res.output || "(no output)";
+    toast(res.exit === 0 ? "Clean" : "Findings reported");
+  } catch (err) {
+    out.textContent = err.message;
+  }
+});
+
+refresh();
+</script>
+</body>
+</html>

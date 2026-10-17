@@ -12,6 +12,7 @@ package resolve
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -208,6 +209,9 @@ func Build(loaded *manifest.Loaded, st Getter, projectDir string, opts Options) 
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
+	if p, ok := envMap["PATH"]; ok {
+		envMap["PATH"] = withCommonBins(p)
+	}
 	res.Env = make([]string, 0, len(keys))
 	for _, k := range keys {
 		res.Env = append(res.Env, k+"="+envMap[k])
@@ -275,4 +279,30 @@ func sameAsRefValue(merged *manifest.Manifest, st Getter, refValue, plain string
 		return false
 	}
 	return val == plain
+}
+
+// withCommonBins appends standard tool directories that GUI-launched processes
+// usually miss, preserving the caller's PATH order first.
+func withCommonBins(path string) string {
+	home, _ := os.UserHomeDir()
+	extra := []string{
+		"/opt/homebrew/bin",
+		"/opt/homebrew/sbin",
+		"/usr/local/bin",
+		filepath.Join(home, ".local", "bin"),
+	}
+	have := map[string]bool{}
+	for _, p := range filepath.SplitList(path) {
+		have[p] = true
+	}
+	var add []string
+	for _, p := range extra {
+		if !have[p] {
+			add = append(add, p)
+		}
+	}
+	if len(add) == 0 {
+		return path
+	}
+	return path + string(os.PathListSeparator) + strings.Join(add, string(os.PathListSeparator))
 }

@@ -240,3 +240,16 @@ internal/broker/   v0.3 · daemon · HTTPS_PROXY egress injection
   `sm setup`. `--yes` skips prompts; bare `sm` shows a first-run banner while
   no identity exists.
 - `sm doctor` also scans `~/.hermes/config.yaml` and `~/.hermes/.env`.
+- `sm ui [--port N] [--no-open]`: loopback-only HTTP UI, embedded static page,
+  per-run bearer token (accepted as a header or once via `?token=`). Endpoints:
+  state (names, scope, transport, status, recent audit — never values), add,
+  rotate, setup, doctor. No CORS; `Cache-Control: no-store` and
+  `Referrer-Policy: no-referrer` on every response.
+- macOS app: `macapp/SMApp.swift` is a WKWebView shell that launches the
+  bundled `sm ui --no-open`, reads the tokenized loopback URL from stdout and
+  terminates the child on quit. `scripts/build-mac-app.sh` produces
+  `dist/sm.app` (bundles the Go binary; Swift deployment target pinned to
+  macOS 13; ad-hoc signed). Finder/LaunchServices launches usually get a
+  minimal PATH, so `resolve.Build` appends `/opt/homebrew/bin`,
+  `/usr/local/bin` and `~/.local/bin`, and agent detection resolves CLIs from
+  those directories too.

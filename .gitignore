@@ -1,6 +1,7 @@
 # build output
 /sm
 /bin/
+/dist/
 
 # local env overrides (may contain plaintext)
 .env.local

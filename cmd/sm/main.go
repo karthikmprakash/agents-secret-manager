@@ -9,7 +9,7 @@ import (
 	"github.com/karthikmprakash/agents-secret-manager/internal/keys"
 )
 
-const version = "0.2.0-dev"
+const version = "0.3.0-dev"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -41,6 +41,8 @@ func main() {
 		err = cmdMcp(os.Args[2:])
 	case "setup":
 		err = cmdSetup(os.Args[2:])
+	case "ui":
+		err = cmdUi(os.Args[2:])
 	case "log":
 		err = cmdLog(os.Args[2:])
 	case "version", "--version", "-v":
@@ -86,6 +88,7 @@ usage:
   sm rotate NAME [flags]  replace a stored value; every ref keeps working
   sm mcp                  run the MCP server over stdio (agent clients start this)
   sm setup [--dry-run]    detect installed agents and wire the MCP server into them
+  sm ui [--port N]        open the local desktop UI (loopback, token required)
   sm log [verify]         show the audit trail, or verify its hash chain
   sm version              print version
 

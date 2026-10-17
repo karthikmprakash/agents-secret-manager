@@ -36,8 +36,12 @@ func detectTargets(exe, home string) []agentTarget {
 	}
 
 	// OpenCode — global config, via its own CLI (preserves unrelated config).
-	if _, err := exec.LookPath("opencode"); err == nil || dirExists(filepath.Join(home, ".config", "opencode")) {
-		argv := []string{"opencode", "mcp", "add", "--global", "sm", "--", exe, "mcp"}
+	opencode := findBin("opencode", home)
+	if opencode != "" || dirExists(filepath.Join(home, ".config", "opencode")) {
+		if opencode == "" {
+			opencode = "opencode"
+		}
+		argv := []string{opencode, "mcp", "add", "--global", "sm", "--", exe, "mcp"}
 		targets = append(targets, agentTarget{
 			name: "opencode",
 			dry:  "would run: " + strings.Join(argv, " "),
@@ -48,8 +52,8 @@ func detectTargets(exe, home string) []agentTarget {
 	}
 
 	// Claude Code — user scope, via its own CLI.
-	if _, err := exec.LookPath("claude"); err == nil {
-		argv := []string{"claude", "mcp", "add", "-s", "user", "sm", "--", exe, "mcp"}
+	if claude := findBin("claude", home); claude != "" {
+		argv := []string{claude, "mcp", "add", "-s", "user", "sm", "--", exe, "mcp"}
 		targets = append(targets, agentTarget{
 			name: "claude",
 			dry:  "would run: " + strings.Join(argv, " "),
@@ -175,4 +179,18 @@ func dirExists(path string) bool {
 func fileExists(path string) bool {
 	fi, err := os.Stat(path)
 	return err == nil && !fi.IsDir()
+}
+
+// findBin resolves a tool even when the caller has a minimal PATH (GUI apps).
+func findBin(name, home string) string {
+	if p, err := exec.LookPath(name); err == nil {
+		return p
+	}
+	for _, dir := range []string{"/opt/homebrew/bin", "/usr/local/bin", filepath.Join(home, ".local", "bin")} {
+		p := filepath.Join(dir, name)
+		if fileExists(p) {
+			return p
+		}
+	}
+	return ""
 }

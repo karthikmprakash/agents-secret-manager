@@ -51,6 +51,18 @@ child's stdout/stderr as `[redacted:NAME]`; `--redact always|never` overrides
 the auto heuristic. Every exec is recorded in `~/.config/sm/audit.jsonl`
 (names, command, cwd — never values), hash-chained and verifiable.
 
+## Mac app
+
+```sh
+./scripts/build-mac-app.sh     # → dist/sm.app
+open dist/sm.app
+```
+
+A native WKWebView shell around the same core: secrets list, add/rotate, agent
+wiring, leak scan and audit. It launches the bundled `sm ui` on a loopback-only
+server with a per-run token; values are never rendered. `sm ui` opens the same
+UI in a browser.
+
 ## Layout
 
 ```
