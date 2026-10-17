@@ -243,8 +243,9 @@ internal/broker/   v0.3 · daemon · HTTPS_PROXY egress injection
 - `sm ui [--port N] [--no-open]`: loopback-only HTTP UI, embedded static page,
   per-run bearer token (accepted as a header or once via `?token=`). Endpoints:
   state (names, scope, transport, status, recent audit — never values), add,
-  rotate, setup, doctor. No CORS; `Cache-Control: no-store` and
-  `Referrer-Policy: no-referrer` on every response.
+  rotate, agents (detected harnesses), setup (all, or `only` one), doctor. No
+  CORS; `Cache-Control: no-store` and `Referrer-Policy: no-referrer` on every
+  response.
 - macOS app: `macapp/SMApp.swift` is a WKWebView shell that launches the
   bundled `sm ui --no-open`, reads the tokenized loopback URL from stdout and
   terminates the child on quit. `scripts/build-mac-app.sh` produces

@@ -24,6 +24,7 @@ import (
 	"github.com/karthikmprakash/agents-secret-manager/internal/keys"
 	"github.com/karthikmprakash/agents-secret-manager/internal/manifest"
 	"github.com/karthikmprakash/agents-secret-manager/internal/store/vaultfile"
+	"github.com/karthikmprakash/agents-secret-manager/internal/wireup"
 )
 
 //go:embed ui/index.html
@@ -53,6 +54,7 @@ func Start(port int) (*Server, error) {
 	mux.HandleFunc("/api/state", s.auth(s.state))
 	mux.HandleFunc("/api/add", s.auth(s.add))
 	mux.HandleFunc("/api/rotate", s.auth(s.rotate))
+	mux.HandleFunc("/api/agents", s.auth(s.agents))
 	mux.HandleFunc("/api/setup", s.auth(s.setup))
 	mux.HandleFunc("/api/doctor", s.auth(s.doctor))
 
@@ -458,9 +460,64 @@ func (s *Server) rotate(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{"ok": true, "name": req.Name})
 }
 
+type agentView struct {
+	Name   string `json:"name"`
+	Detail string `json:"detail"`
+}
+
+func (s *Server) agents(w http.ResponseWriter, r *http.Request) {
+	exe, err := os.Executable()
+	if err != nil {
+		writeError(w, 500, err)
+		return
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		writeError(w, 500, err)
+		return
+	}
+	out := []agentView{}
+	for _, t := range wireup.Detect(exe, home) {
+		out = append(out, agentView{Name: t.Name, Detail: t.Detail})
+	}
+	writeJSON(w, 200, map[string]any{"agents": out})
+}
+
+type setupRequest struct {
+	Only string `json:"only"`
+}
+
 func (s *Server) setup(w http.ResponseWriter, r *http.Request) {
-	out, code := runSelf("setup")
-	writeJSON(w, 200, map[string]any{"output": out, "exit": code})
+	var req setupRequest
+	_ = decode(r, &req)
+
+	exe, err := os.Executable()
+	if err != nil {
+		writeError(w, 500, err)
+		return
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		writeError(w, 500, err)
+		return
+	}
+
+	results := []map[string]any{}
+	for _, t := range wireup.Detect(exe, home) {
+		if req.Only != "" && t.Name != req.Only {
+			continue
+		}
+		item := map[string]any{"name": t.Name}
+		status, err := t.Apply()
+		if err != nil {
+			item["status"] = err.Error()
+			item["failed"] = true
+		} else {
+			item["status"] = status
+		}
+		results = append(results, item)
+	}
+	writeJSON(w, 200, map[string]any{"results": results})
 }
 
 type doctorRequest struct {

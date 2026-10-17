@@ -3,387 +3,1050 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<meta name="description" content="sm — local secrets for AI agents">
 <title>sm — secrets for agents</title>
 <style>
   :root {
-    --bg: #0f1115;
-    --panel: #161921;
-    --border: #262b36;
-    --text: #e8eaf0;
-    --muted: #9aa3b2;
-    --faint: #6b7484;
-    --accent: #6aa5ff;
-    --ok: #63c98a;
-    --warn: #e3b341;
-    --err: #f07178;
-    --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+    color-scheme: dark light;
+    --bg: #0b0d11;
+    --bg-elev: #0f1217;
+    --panel: #12151b;
+    --panel-2: #171b23;
+    --line: #232936;
+    --line-soft: #1a1f29;
+    --text: #e8ebf1;
+    --text-2: #a3abb9;
+    --text-3: #6e7787;
+    --accent: #9db7ff;
+    --accent-soft: rgba(157, 183, 255, .10);
+    --ink: #eef1f6;
+    --ink-text: #0b0d11;
+    --ok: #6fcf97;
+    --ok-soft: rgba(111, 207, 151, .12);
+    --warn: #e5c07b;
+    --warn-soft: rgba(229, 192, 123, .12);
+    --err: #ef8b8b;
+    --err-soft: rgba(239, 139, 139, .12);
+    --shadow: 0 28px 90px rgba(0, 0, 0, .5);
+    --radius-lg: 16px;
+    --radius-md: 10px;
+    --radius-sm: 7px;
+    --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Inter, sans-serif;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
   }
   @media (prefers-color-scheme: light) {
     :root {
-      --bg: #f6f7f9; --panel: #ffffff; --border: #e2e5ea; --text: #171a20;
-      --muted: #5b6472; --faint: #8a93a1; --accent: #2563eb;
-      --ok: #1a7f4b; --warn: #9a6b00; --err: #c0392b;
+      --bg: #f6f7f9;
+      --bg-elev: #ffffff;
+      --panel: #ffffff;
+      --panel-2: #f1f3f7;
+      --line: #e2e5ec;
+      --line-soft: #ebedf2;
+      --text: #15181e;
+      --text-2: #5a6270;
+      --text-3: #8b93a2;
+      --accent: #3f5bd9;
+      --accent-soft: rgba(63, 91, 217, .08);
+      --ink: #15181e;
+      --ink-text: #ffffff;
+      --ok: #1c7c48;
+      --ok-soft: rgba(28, 124, 72, .10);
+      --warn: #8a6400;
+      --warn-soft: rgba(138, 100, 0, .10);
+      --err: #b3261e;
+      --err-soft: rgba(179, 38, 30, .08);
+      --shadow: 0 28px 90px rgba(15, 23, 42, .16);
     }
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; }
   body {
-    margin: 0; background: var(--bg); color: var(--text);
-    font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif;
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 13px/1.5 var(--sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
-  header {
-    display: flex; align-items: center; gap: 16px;
-    padding: 16px 24px; border-bottom: 1px solid var(--border);
+  button, input, select { font: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+  .skip {
+    position: fixed; left: 12px; top: -48px; z-index: 100;
+    background: var(--ink); color: var(--ink-text); padding: 8px 12px; border-radius: 8px;
+    font-size: 12px; text-decoration: none; transition: top .15s ease;
   }
+  .skip:focus { top: 12px; }
+
+  /* shell */
+  .app { display: grid; grid-template-columns: 236px minmax(0, 1fr); min-height: 100dvh; }
+  .rail {
+    position: sticky; top: 0; height: 100dvh;
+    display: flex; flex-direction: column; gap: 22px;
+    padding: 20px 14px; border-right: 1px solid var(--line);
+    background: var(--bg-elev);
+  }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 2px 8px; }
   .mark {
-    font-family: var(--mono); font-weight: 700; font-size: 18px;
-    background: var(--text); color: var(--bg); border-radius: 6px; padding: 1px 8px;
+    width: 30px; height: 30px; border-radius: 9px; flex: none;
+    background: var(--ink); color: var(--ink-text);
+    display: grid; place-items: center; font: 600 12.5px/1 var(--mono); letter-spacing: -0.02em;
   }
-  .sub { color: var(--muted); margin-left: 8px; }
-  .meta { margin-left: auto; color: var(--faint); font-family: var(--mono); font-size: 11px; text-align: right; }
-  main {
-    display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(300px, 1fr);
-    gap: 20px; padding: 20px 24px 40px; max-width: 1200px; margin: 0 auto;
+  .brand-name { font-size: 13.5px; font-weight: 600; letter-spacing: -0.015em; }
+  .brand-sub { margin-top: 1px; font-size: 11px; color: var(--text-3); }
+  nav { display: flex; flex-direction: column; gap: 2px; }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    padding: 8px 10px; border: 0; border-radius: 8px;
+    background: transparent; color: var(--text-2);
+    font-size: 13px; text-align: left; cursor: pointer;
+    transition: background .14s ease, color .14s ease;
   }
-  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
-  .col { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
-  .card { border: 1px solid var(--border); background: var(--panel); border-radius: 10px; }
-  .card-head {
-    display: flex; align-items: baseline; gap: 10px;
-    padding: 12px 16px; border-bottom: 1px solid var(--border);
+  .nav-item svg { width: 16px; height: 16px; flex: none; opacity: .7; }
+  .nav-item:hover { background: var(--panel-2); color: var(--text); }
+  .nav-item.active { background: var(--panel-2); color: var(--text); }
+  .nav-item.active svg { opacity: 1; color: var(--accent); }
+  .nav-count { margin-left: auto; font: 10.5px var(--mono); color: var(--text-3); font-variant-numeric: tabular-nums; }
+  .rail-foot { margin-top: auto; display: flex; flex-direction: column; gap: 6px; padding: 0 8px; }
+  .status-line { display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--text-2); }
+  .dot { width: 6px; height: 6px; border-radius: 50%; flex: none; }
+  .dot.ok { background: var(--ok); box-shadow: 0 0 0 3px var(--ok-soft); }
+  .dot.warn { background: var(--warn); box-shadow: 0 0 0 3px var(--warn-soft); }
+  .path { font: 10.5px var(--mono); color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .main { min-width: 0; display: flex; flex-direction: column; }
+  .topbar {
+    position: sticky; top: 0; z-index: 20;
+    display: flex; align-items: center; gap: 12px;
+    padding: 18px 32px; border-bottom: 1px solid var(--line-soft);
+    background: rgba(11, 13, 17, .82); backdrop-filter: blur(14px);
   }
-  h2 { font-size: 13px; margin: 0; font-weight: 600; }
-  .hint, .count { color: var(--faint); font-size: 11px; }
-  .count { margin-left: auto; font-family: var(--mono); }
-  table { width: 100%; border-collapse: collapse; }
-  th {
-    text-align: left; font-size: 11px; color: var(--faint); font-weight: 500;
-    padding: 8px 16px; border-bottom: 1px solid var(--border);
+  @media (prefers-color-scheme: light) {
+    .topbar { background: rgba(246, 247, 249, .86); }
   }
-  td { padding: 9px 16px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; }
-  tr:last-child td { border-bottom: 0; }
-  .name { font-family: var(--mono); font-size: 12.5px; }
-  .badge {
-    display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 999px;
-    border: 1px solid var(--border); color: var(--muted);
+  .headings h1 { margin: 0; font-size: 19px; font-weight: 650; letter-spacing: -0.025em; }
+  .headings p { margin: 2px 0 0; font-size: 12px; color: var(--text-3); }
+  .spacer { flex: 1; }
+  .search {
+    display: flex; align-items: center; gap: 7px;
+    min-width: 200px; height: 32px; padding: 0 10px;
+    border: 1px solid var(--line); border-radius: 9px; background: var(--panel);
+    color: var(--text-3);
   }
-  .badge.present { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, var(--border)); }
-  .badge.missing { color: var(--err); border-color: color-mix(in srgb, var(--err) 40%, var(--border)); }
-  button {
-    font: inherit; font-size: 12.5px; padding: 5px 12px; border-radius: 7px;
-    border: 1px solid var(--border); background: transparent; color: var(--text); cursor: pointer;
+  .search svg { width: 14px; height: 14px; flex: none; }
+  .search input { width: 100%; border: 0; outline: none; background: transparent; color: var(--text); font-size: 12.5px; }
+  .search kbd {
+    font: 10px var(--mono); color: var(--text-3);
+    border: 1px solid var(--line); border-radius: 4px; padding: 1px 4px;
   }
-  button:hover { border-color: var(--faint); }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
-  button.primary:hover { filter: brightness(1.08); }
-  button.small { padding: 3px 9px; font-size: 11.5px; }
-  button:disabled { opacity: .5; cursor: default; }
-  form { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
-  label { display: flex; flex-direction: column; gap: 5px; font-size: 11.5px; color: var(--muted); }
-  input, select {
-    font: inherit; font-size: 13px; color: var(--text); background: var(--bg);
-    border: 1px solid var(--border); border-radius: 7px; padding: 7px 9px; outline: none;
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    height: 32px; padding: 0 13px;
+    border: 1px solid var(--line); border-radius: 9px;
+    background: var(--panel); color: var(--text);
+    font-size: 12.5px; font-weight: 500; white-space: nowrap; cursor: pointer;
+    transition: background .14s ease, border-color .14s ease, opacity .14s ease, transform .06s ease;
   }
-  input:focus, select:focus { border-color: var(--accent); }
-  input[type=checkbox] { width: auto; margin-right: 6px; }
-  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .msg { margin: 0; min-height: 16px; font-size: 12px; color: var(--muted); }
-  .msg.err { color: var(--err); }
-  .empty { color: var(--faint); font-size: 12.5px; padding: 14px 16px; margin: 0; }
-  .audit { list-style: none; margin: 0; padding: 4px 0; }
-  .audit li {
-    display: flex; gap: 10px; padding: 7px 16px; font-size: 11.5px;
-    color: var(--muted); border-bottom: 1px solid var(--border);
+  .btn svg { width: 14px; height: 14px; }
+  .btn:hover { border-color: var(--text-3); }
+  .btn:active { transform: translateY(1px); }
+  .btn.primary { background: var(--ink); color: var(--ink-text); border-color: transparent; font-weight: 600; }
+  .btn.primary:hover { opacity: .9; border-color: transparent; }
+  .btn.ghost { background: transparent; }
+  .btn.small { height: 26px; padding: 0 9px; font-size: 11.5px; border-radius: 7px; }
+  .btn.icon { width: 32px; padding: 0; }
+  .btn:disabled { opacity: .5; cursor: default; transform: none; }
+  .btn.primary:disabled { opacity: .6; }
+
+  .view { width: 100%; max-width: 1040px; margin: 0 auto; padding: 26px 32px 64px; }
+
+  /* secrets */
+  .list {
+    display: flex; flex-direction: column;
+    border: 1px solid var(--line); border-radius: var(--radius-lg);
+    background: var(--panel); overflow: hidden;
   }
-  .audit li:last-child { border-bottom: 0; }
-  .audit .ts { color: var(--faint); font-family: var(--mono); flex: none; }
-  .audit .cmd { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); }
-  .audit .act { flex: none; color: var(--faint); }
-  .out {
-    display: none; margin: 0 16px 14px; padding: 10px; max-height: 220px; overflow: auto;
-    font: 11.5px/1.5 var(--mono); color: var(--muted);
-    background: var(--bg); border: 1px solid var(--border); border-radius: 7px; white-space: pre-wrap;
+  .secret {
+    display: grid; grid-template-columns: 8px minmax(0, 1fr) auto auto;
+    align-items: center; gap: 14px;
+    padding: 13px 16px; border-bottom: 1px solid var(--line-soft);
+    transition: background .12s ease;
   }
-  .out.show { display: block; }
-  .stack { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
-  .check { flex-direction: row; align-items: center; color: var(--muted); }
-  dialog {
-    background: var(--panel); color: var(--text); border: 1px solid var(--border);
-    border-radius: 12px; padding: 0; width: 340px;
+  .secret:last-child { border-bottom: 0; }
+  .secret:hover { background: var(--panel-2); }
+  .secret-main { min-width: 0; }
+  .secret-name {
+    font: 500 12.5px var(--mono); letter-spacing: -0.01em;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
-  dialog::backdrop { background: rgba(0,0,0,.45); }
-  dialog form { padding: 16px; }
-  .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+  .secret-ref {
+    margin-top: 2px; font: 10.5px var(--mono); color: var(--text-3);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .chips { display: flex; gap: 6px; }
+  .chip {
+    display: inline-flex; align-items: center; height: 20px; padding: 0 7px;
+    border: 1px solid var(--line); border-radius: 6px;
+    font-size: 10.5px; color: var(--text-2); white-space: nowrap;
+  }
+  .chip.transport { font-family: var(--mono); }
+  .chip.warn { color: var(--warn); border-color: var(--warn); background: var(--warn-soft); }
+  .secret-actions { display: flex; gap: 4px; opacity: 0; transition: opacity .12s ease; }
+  .secret:hover .secret-actions, .secret:focus-within .secret-actions { opacity: 1; }
+  @media (hover: none) { .secret-actions { opacity: 1; } }
+
+  /* empty states */
+  .empty {
+    border: 1px dashed var(--line); border-radius: var(--radius-lg);
+    padding: 56px 24px; text-align: center; color: var(--text-2);
+    background: color-mix(in srgb, var(--panel) 50%, transparent);
+  }
+  .empty svg { width: 30px; height: 30px; color: var(--text-3); margin-bottom: 12px; }
+  .empty h2 { margin: 0 0 6px; font-size: 15px; letter-spacing: -0.015em; color: var(--text); }
+  .empty p { max-width: 46ch; margin: 0 auto 16px; font-size: 12.5px; color: var(--text-3); }
+  .empty code {
+    display: inline-block; padding: 6px 10px;
+    font: 11.5px var(--mono); color: var(--text-2);
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 7px;
+  }
+  .empty .btn { margin-left: 8px; }
+  .empty-inline { padding: 28px 20px; text-align: center; }
+  .empty-inline h3 { margin: 0 0 4px; font-size: 13px; }
+  .empty-inline p { margin: 0; font-size: 12px; color: var(--text-3); }
+
+  /* panels (agents / scan) */
+  .panel { border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--panel); overflow: hidden; }
+  .panel-head { display: flex; align-items: flex-start; gap: 16px; padding: 18px 20px; border-bottom: 1px solid var(--line-soft); }
+  .panel-head h2 { margin: 0; font-size: 14px; letter-spacing: -0.015em; }
+  .panel-head p { max-width: 56ch; margin: 3px 0 0; font-size: 12px; color: var(--text-3); }
+  .panel-head .right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .agent { display: flex; align-items: center; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--line-soft); }
+  .agent:last-child { border-bottom: 0; }
+  .agent-mark {
+    width: 28px; height: 28px; border-radius: 8px; flex: none;
+    display: grid; place-items: center;
+    background: var(--panel-2); border: 1px solid var(--line);
+    font: 600 10.5px var(--mono); color: var(--text-2);
+  }
+  .agent-name { font: 500 12.5px var(--mono); }
+  .agent-detail { margin-top: 1px; font-size: 11.5px; color: var(--text-3); }
+  .agent-status { margin-left: auto; font-size: 11.5px; color: var(--text-3); }
+  .agent-status.ok { color: var(--ok); }
+  .agent-status.err { color: var(--err); }
+
+  .scan-controls { display: flex; align-items: center; gap: 14px; padding: 16px 20px; }
+  .switch { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-2); cursor: pointer; }
+  .switch input { accent-color: var(--accent); }
+  .hint { font-size: 11.5px; color: var(--text-3); }
+  .scan-controls .btn { margin-left: auto; }
+  .scan-out {
+    margin: 0 20px 20px; padding: 14px 16px; max-height: 420px; overflow: auto;
+    background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-md);
+    font: 11.5px/1.6 var(--mono); color: var(--text-2); white-space: pre-wrap;
+  }
+  .badge { font-size: 10.5px; padding: 1px 7px; border-radius: 6px; border: 1px solid var(--line); color: var(--text-3); }
+  .badge.ok { color: var(--ok); border-color: var(--ok); background: var(--ok-soft); }
+  .badge.err { color: var(--err); border-color: var(--err); background: var(--err-soft); }
+
+  /* audit */
+  .audit { border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--panel); overflow: hidden; }
+  .audit-row {
+    display: grid; grid-template-columns: 62px 76px minmax(0, 1fr); gap: 14px;
+    align-items: center; padding: 11px 16px; border-bottom: 1px solid var(--line-soft);
+  }
+  .audit-row:last-child { border-bottom: 0; }
+  .audit-time { font: 10.5px var(--mono); color: var(--text-3); }
+  .audit-action { font: 10.5px var(--mono); color: var(--text-2); }
+  .audit-cmd { font: 11.5px var(--mono); color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* sheet */
+  .scrim { position: fixed; inset: 0; z-index: 40; background: rgba(4, 6, 10, .55); backdrop-filter: blur(2px); opacity: 0; transition: opacity .18s ease; }
+  .scrim.open { opacity: 1; }
+  .sheet {
+    position: fixed; top: 0; right: 0; bottom: 0; z-index: 50;
+    width: min(430px, 100vw);
+    display: flex; flex-direction: column;
+    background: var(--bg-elev); border-left: 1px solid var(--line);
+    box-shadow: var(--shadow);
+    transform: translateX(100%);
+    transition: transform .22s cubic-bezier(.2, .8, .2, 1);
+  }
+  .sheet.open { transform: translateX(0); }
+  .sheet-head { display: flex; align-items: flex-start; gap: 12px; padding: 22px 24px 16px; border-bottom: 1px solid var(--line-soft); }
+  .sheet-head h2 { margin: 0; font-size: 16px; letter-spacing: -0.02em; }
+  .sheet-head p { margin: 3px 0 0; font-size: 12px; color: var(--text-3); }
+  .sheet-head .btn { margin-left: auto; }
+  form { display: flex; flex-direction: column; gap: 16px; padding: 20px 24px; overflow: auto; }
+  .field { display: flex; flex-direction: column; gap: 6px; font-size: 11.5px; color: var(--text-2); }
+  .field input, .field select {
+    height: 34px; padding: 0 10px; outline: none;
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-md);
+    color: var(--text);
+  }
+  .field input:focus, .field select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .field small { font-size: 10.5px; color: var(--text-3); }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .seg { display: flex; gap: 3px; padding: 3px; background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--radius-md); }
+  .seg-btn {
+    flex: 1; padding: 5px 8px; border: 0; border-radius: 6px;
+    background: transparent; color: var(--text-3); font-size: 12px; cursor: pointer;
+    transition: background .12s ease, color .12s ease;
+  }
+  .seg-btn:hover { color: var(--text-2); }
+  .seg-btn.active { background: var(--panel); color: var(--text); }
+  .seg-btn:disabled { opacity: .35; cursor: default; }
+  .form-error { margin: 0; color: var(--err); font-size: 12px; }
+  .sheet-foot { display: flex; justify-content: flex-end; gap: 8px; padding-top: 2px; }
+  .rotate-name { margin: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--panel-2); font: 12px var(--mono); color: var(--text-2); }
+
+  /* toasts + skeleton */
+  .toasts { position: fixed; left: 50%; bottom: 22px; z-index: 60; display: flex; flex-direction: column; align-items: center; gap: 8px; transform: translateX(-50%); }
   .toast {
-    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(10px);
-    background: var(--panel); border: 1px solid var(--border); color: var(--text);
-    padding: 8px 14px; border-radius: 8px; font-size: 12.5px; opacity: 0; pointer-events: none;
-    transition: opacity .15s ease, transform .15s ease;
+    padding: 8px 14px; border: 1px solid var(--line); border-radius: 9px;
+    background: var(--panel); color: var(--text); font-size: 12px;
+    opacity: 0; transform: translateY(8px);
+    transition: opacity .16s ease, transform .16s ease;
   }
-  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.in { opacity: 1; transform: translateY(0); }
+  .skeleton { display: grid; grid-template-columns: 8px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 15px 16px; border-bottom: 1px solid var(--line-soft); }
+  .skeleton:last-child { border-bottom: 0; }
+  .sk-bar { height: 9px; border-radius: 5px; background: var(--panel-2); animation: pulse 1.4s ease-in-out infinite; }
+  .sk-bar.short { width: 40%; }
+  @keyframes pulse { 50% { opacity: .45; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition: none !important; animation: none !important; }
+  }
+
+  /* responsive */
+  @media (max-width: 900px) {
+    .app { grid-template-columns: 1fr; }
+    .rail {
+      position: sticky; top: 0; z-index: 30; height: auto;
+      flex-direction: row; align-items: center; gap: 12px;
+      padding: 10px 14px; border-right: 0; border-bottom: 1px solid var(--line);
+      overflow-x: auto;
+    }
+    .brand { padding: 0; }
+    .brand-sub, .rail-foot { display: none; }
+    nav { flex-direction: row; gap: 4px; }
+    .nav-item { white-space: nowrap; padding: 7px 9px; }
+    .nav-count { display: none; }
+    .topbar { flex-wrap: wrap; padding: 14px 16px; }
+    .headings { flex: 1 1 100%; }
+    .search { order: 3; width: 100%; }
+    .view { padding: 18px 16px 48px; }
+  }
+  @media (max-width: 640px) {
+    .secret { grid-template-columns: 8px minmax(0, 1fr) auto; }
+    .chips { display: none; }
+    .secret-actions { opacity: 1; }
+    .row2 { grid-template-columns: 1fr; }
+    .search kbd { display: none; }
+  }
 </style>
 </head>
 <body>
-<header>
-  <div><span class="mark">sm</span><span class="sub">secrets for agents</span></div>
-  <div class="meta" id="meta"></div>
-  <button class="small" id="refresh">Refresh</button>
-</header>
+<a class="skip" href="#main">Skip to content</a>
 
-<main>
-  <section class="col">
-    <div class="card">
-      <div class="card-head"><h2>Secrets</h2><span class="count" id="count"></span></div>
-      <table>
-        <thead><tr><th>Name</th><th>Scope</th><th>Transport</th><th>Status</th><th></th></tr></thead>
-        <tbody id="secrets"></tbody>
-      </table>
-      <p class="empty" id="empty">No secrets yet — add one on the right.</p>
-    </div>
-    <div class="card">
-      <div class="card-head"><h2>Audit</h2><span class="hint">names only · newest first</span></div>
-      <ul class="audit" id="audit"></ul>
-      <p class="empty" id="auditEmpty">No activity yet.</p>
-    </div>
-  </section>
-
-  <aside class="col">
-    <div class="card">
-      <div class="card-head"><h2>Add secret</h2></div>
-      <form id="addForm">
-        <label>Name <input id="name" placeholder="AWS_ACCESS_KEY_ID" autocomplete="off" spellcheck="false"></label>
-        <label>Value <input id="value" type="password" placeholder="hidden" autocomplete="new-password"></label>
-        <div class="row">
-          <label>Scope <select id="scope"><option value="global">global</option><option value="project">project</option></select></label>
-          <label>Transport <select id="transport"><option value="env">env</option><option value="file">file</option></select></label>
-        </div>
-        <label>Or generate <input id="generate" placeholder="hex/32 (optional)" autocomplete="off" spellcheck="false"></label>
-        <button class="primary" type="submit">Store secret</button>
-        <p class="msg" id="addMsg"></p>
-      </form>
-    </div>
-
-    <div class="card">
-      <div class="card-head"><h2>Agents</h2></div>
-      <div class="stack">
-        <p class="hint" style="margin:0">Wire the MCP server into every detected harness. No keys go into their configs.</p>
-        <div><button id="wire">Wire detected agents</button></div>
-        <pre class="out" id="wireOut"></pre>
+<div class="app">
+  <aside class="rail">
+    <div class="brand">
+      <div class="mark">sm</div>
+      <div>
+        <div class="brand-name">sm</div>
+        <div class="brand-sub">secrets for agents</div>
       </div>
     </div>
 
-    <div class="card">
-      <div class="card-head"><h2>Leak scan</h2></div>
-      <div class="stack">
-        <label class="check"><input type="checkbox" id="history"> include git history</label>
-        <div><button id="scan">Run doctor</button></div>
-        <pre class="out" id="scanOut"></pre>
-      </div>
+    <nav aria-label="Sections">
+      <button class="nav-item active" data-view="secrets">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8.5" cy="8.5" r="3.5"/><path d="m11 11 7.5 7.5M16 16l2.5-2.5M18.5 18.5 20 17"/></svg>
+        Secrets <span class="nav-count" id="navCount"></span>
+      </button>
+      <button class="nav-item" data-view="agents">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0V8ZM12 17v4"/></svg>
+        Agents <span class="nav-count" id="navAgents"></span>
+      </button>
+      <button class="nav-item" data-view="scan">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="5.5"/><path d="m15 15 4.5 4.5"/></svg>
+        Leak scan
+      </button>
+      <button class="nav-item" data-view="audit">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>
+        Audit
+      </button>
+    </nav>
+
+    <div class="rail-foot">
+      <div class="status-line"><span class="dot ok" id="vaultDot"></span><span id="vaultState">connecting…</span></div>
+      <div class="path" id="vaultPath" title=""></div>
     </div>
   </aside>
-</main>
 
-<dialog id="rotateDialog">
-  <form method="dialog" id="rotateForm">
-    <label>New value for <span class="name" id="rotateName"></span>
-      <input id="rotateValue" type="password" autocomplete="new-password">
-    </label>
-    <div class="dialog-actions">
-      <button value="cancel" type="button" id="rotateCancel">Cancel</button>
-      <button class="primary" value="ok" type="submit">Rotate</button>
+  <main class="main" id="main">
+    <header class="topbar">
+      <div class="headings">
+        <h1 id="viewTitle">Secrets</h1>
+        <p id="viewSub">Names and status. Values never leave the vault.</p>
+      </div>
+      <div class="spacer"></div>
+      <div class="search" id="searchWrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="5.5"/><path d="m15 15 4.5 4.5"/></svg>
+        <input id="filter" placeholder="Filter secrets" aria-label="Filter secrets" spellcheck="false" autocomplete="off">
+        <kbd>/</kbd>
+      </div>
+      <button class="btn icon ghost" id="refresh" aria-label="Refresh" title="Refresh">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/></svg>
+      </button>
+      <button class="btn primary" id="addBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        Add secret
+      </button>
+    </header>
+
+    <section class="view" id="view-secrets">
+      <div class="list" id="secretList" aria-live="polite"></div>
+      <div class="empty" id="secretsEmpty" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="9" r="4"/><path d="M10.5 12.5 9.5 20h5l-1-7.5"/></svg>
+        <h2>No secrets yet</h2>
+        <p>Add your first secret — global secrets are available in every folder and to every agent.</p>
+        <code>sm add --global AWS_ACCESS_KEY_ID</code>
+        <button class="btn small" id="emptyAdd" type="button">Add secret</button>
+      </div>
+    </section>
+
+    <section class="view" id="view-agents" hidden>
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Agent harnesses</h2>
+            <p>Wiring adds a local MCP server entry — no keys are written into agent configs. Agents get <code>secret_list</code> and <code>secret_run</code>.</p>
+          </div>
+          <div class="right">
+            <button class="btn" id="wireAll">Connect all</button>
+          </div>
+        </div>
+        <div id="agentList"></div>
+      </div>
+    </section>
+
+    <section class="view" id="view-scan" hidden>
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Leak scan</h2>
+            <p>Checks .env files, shell rc files, agent transcripts, MCP configs and git history for plaintext copies of vaulted secrets.</p>
+          </div>
+          <div class="right"><span class="badge" id="scanBadge" hidden></span></div>
+        </div>
+        <div class="scan-controls">
+          <label class="switch"><input type="checkbox" id="history"> include git history</label>
+          <span class="hint">runs locally · values are never printed</span>
+          <button class="btn" id="scanBtn">Run scan</button>
+        </div>
+        <pre class="scan-out" id="scanResult" hidden></pre>
+      </div>
+    </section>
+
+    <section class="view" id="view-audit" hidden>
+      <div class="audit" id="auditList"></div>
+      <div class="empty" id="auditEmpty" hidden>
+        <h2>No activity yet</h2>
+        <p>Run a command through <code>sm exec</code> or <code>secret_run</code> and it will appear here — names only.</p>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="scrim" id="scrim" hidden></div>
+<aside class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" hidden>
+  <header class="sheet-head">
+    <div>
+      <h2 id="sheetTitle">Add secret</h2>
+      <p id="sheetSub">Stored in the vault. Agents use it without seeing it.</p>
     </div>
-  </form>
-</dialog>
+    <button class="btn icon ghost" id="sheetClose" type="button" aria-label="Close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+    </button>
+  </header>
 
-<div class="toast" id="toast"></div>
+  <form id="secretForm" novalidate>
+    <div id="nameRow">
+      <label class="field">Name
+        <input id="fName" placeholder="AWS_ACCESS_KEY_ID" autocomplete="off" spellcheck="false">
+      </label>
+    </div>
+    <div id="rotateRow" hidden>
+      <p class="rotate-name" id="rotateName"></p>
+    </div>
+
+    <div>
+      <div class="seg" id="modeSeg" role="group" aria-label="Value source">
+        <button class="seg-btn active" type="button" data-mode="value">Value</button>
+        <button class="seg-btn" type="button" data-mode="generate">Generate</button>
+      </div>
+    </div>
+
+    <div id="valueWrap">
+      <label class="field">Value
+        <input id="fValue" type="password" autocomplete="new-password" placeholder="stored encrypted">
+      </label>
+    </div>
+    <div id="genWrap" hidden>
+      <label class="field">Spec
+        <input id="fGenerate" placeholder="hex/32" autocomplete="off" spellcheck="false">
+        <small>profile then length — alnum, hex or postgres (8–256)</small>
+      </label>
+    </div>
+
+    <div class="row2" id="sheetOptions">
+      <div class="field">Scope
+        <div class="seg" id="scopeSeg" role="group" aria-label="Scope">
+          <button class="seg-btn active" type="button" data-scope="global">Global</button>
+          <button class="seg-btn" type="button" data-scope="project">Project</button>
+        </div>
+      </div>
+      <label class="field">Transport
+        <select id="fTransport">
+          <option value="env">env (sm exec)</option>
+          <option value="file">file (sm inject)</option>
+        </select>
+      </label>
+    </div>
+
+    <p class="form-error" id="formError" role="alert" hidden></p>
+
+    <footer class="sheet-foot">
+      <button class="btn ghost" type="button" id="cancelBtn">Cancel</button>
+      <button class="btn primary" type="submit" id="saveBtn">Store secret</button>
+    </footer>
+  </form>
+</aside>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
 
 <script>
-const params = new URLSearchParams(location.search);
-const token = params.get("token") || "";
-if (token) history.replaceState({}, "", "/");
+(() => {
+  "use strict";
 
-async function api(path, options = {}) {
-  const res = await fetch(path, {
-    ...options,
-    headers: { ...(options.headers || {}), Authorization: "Bearer " + token },
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || res.statusText);
-  return data;
-}
+  const token = new URLSearchParams(location.search).get("token") || "";
+  if (token) history.replaceState({}, "", "/");
 
-const $ = (id) => document.getElementById(id);
-let state = null;
-let rotateTarget = null;
+  const $ = (id) => document.getElementById(id);
+  const views = {
+    secrets: ["Secrets", "Names and status. Values never leave the vault."],
+    agents: ["Agents", "Connect the MCP server to the harnesses on this Mac."],
+    scan: ["Leak scan", "Find plaintext copies of the secrets in your vault."],
+    audit: ["Audit", "Every command that used a secret. Names only."],
+  };
+  const state = {
+    data: null,
+    agents: null,
+    wired: new Set(),
+    view: "secrets",
+    filter: "",
+    formMode: "value",
+    scope: "global",
+    sheet: null,
+  };
 
-function toast(text) {
-  const t = $("toast");
-  t.textContent = text;
-  t.classList.add("show");
-  clearTimeout(t._timer);
-  t._timer = setTimeout(() => t.classList.remove("show"), 2200);
-}
-
-function badge(text, cls) {
-  const span = document.createElement("span");
-  span.className = "badge " + (cls || "");
-  span.textContent = text;
-  return span;
-}
-
-function render(s) {
-  state = s;
-  $("meta").textContent = (s.vault || "") + (s.projectManifest ? " · " + s.projectManifest : "");
-  $("count").textContent = s.secrets.length + " total";
-
-  const tbody = $("secrets");
-  tbody.textContent = "";
-  for (const sec of s.secrets) {
-    const tr = document.createElement("tr");
-
-    const tdName = document.createElement("td");
-    tdName.className = "name";
-    tdName.textContent = sec.name;
-
-    const tdScope = document.createElement("td");
-    tdScope.appendChild(badge(sec.scope));
-
-    const tdTransport = document.createElement("td");
-    tdTransport.appendChild(badge(sec.transport));
-
-    const tdStatus = document.createElement("td");
-    tdStatus.appendChild(badge(sec.status, sec.status === "present" ? "present" : sec.status === "missing" ? "missing" : ""));
-
-    const tdAction = document.createElement("td");
-    tdAction.style.textAlign = "right";
-    const btn = document.createElement("button");
-    btn.className = "small";
-    btn.textContent = "Rotate";
-    btn.addEventListener("click", () => openRotate(sec.name));
-    tdAction.appendChild(btn);
-
-    tr.append(tdName, tdScope, tdTransport, tdStatus, tdAction);
-    tbody.appendChild(tr);
+  function el(tag, attrs = {}, children = []) {
+    const node = document.createElement(tag);
+    for (const [key, value] of Object.entries(attrs)) {
+      if (value == null) continue;
+      if (key === "class") node.className = value;
+      else if (key === "text") node.textContent = value;
+      else if (key.startsWith("on")) node.addEventListener(key.slice(2), value);
+      else node.setAttribute(key, value);
+    }
+    for (const child of [].concat(children)) {
+      if (child != null) node.append(child);
+    }
+    return node;
   }
-  $("empty").style.display = s.secrets.length ? "none" : "block";
 
-  const projectOption = $("scope").querySelector('option[value="project"]');
-  projectOption.disabled = !s.projectManifest;
-
-  const audit = $("audit");
-  audit.textContent = "";
-  for (const e of (s.audit || [])) {
-    const li = document.createElement("li");
-    const ts = document.createElement("span");
-    ts.className = "ts";
-    ts.textContent = e.ts.slice(11, 19);
-    const act = document.createElement("span");
-    act.className = "act";
-    act.textContent = e.action;
-    const cmd = document.createElement("span");
-    cmd.className = "cmd";
-    cmd.textContent = e.cmd || (e.secrets || []).join(", ");
-    li.append(ts, act, cmd);
-    audit.appendChild(li);
+  async function api(path, options = {}) {
+    const res = await fetch(path, {
+      ...options,
+      headers: { ...(options.headers || {}), Authorization: "Bearer " + token },
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || res.statusText);
+    return data;
   }
-  $("auditEmpty").style.display = (s.audit || []).length ? "none" : "block";
-}
 
-async function refresh() {
-  try {
-    render(await api("/api/state"));
-  } catch (err) {
-    toast("Could not load state: " + err.message);
+  function toast(message) {
+    const node = el("div", { class: "toast", text: message });
+    $("toasts").append(node);
+    requestAnimationFrame(() => node.classList.add("in"));
+    setTimeout(() => {
+      node.classList.remove("in");
+      setTimeout(() => node.remove(), 200);
+    }, 2600);
   }
-}
 
-$("refresh").addEventListener("click", refresh);
+  function shortPath(path) {
+    if (!path) return "";
+    return path.length > 42 ? "…" + path.slice(-40) : path;
+  }
 
-$("addForm").addEventListener("submit", async (ev) => {
-  ev.preventDefault();
-  const msg = $("addMsg");
-  msg.className = "msg";
-  msg.textContent = "Storing…";
-  try {
-    await api("/api/add", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: $("name").value.trim(),
-        value: $("value").value,
-        scope: $("scope").value,
-        transport: $("transport").value,
-        generate: $("generate").value.trim(),
+  function setView(name) {
+    state.view = name;
+    document.querySelectorAll(".nav-item").forEach((btn) => {
+      const active = btn.dataset.view === name;
+      btn.classList.toggle("active", active);
+      if (active) btn.setAttribute("aria-current", "page");
+      else btn.removeAttribute("aria-current");
+    });
+    const [title, sub] = views[name];
+    $("viewTitle").textContent = title;
+    $("viewSub").textContent = sub;
+    for (const key of Object.keys(views)) $(`view-${key}`).hidden = key !== name;
+    $("searchWrap").hidden = name !== "secrets";
+    $("addBtn").hidden = name !== "secrets";
+    if (name === "agents") loadAgents();
+  }
+
+  function skeletonSecrets() {
+    const list = $("secretList");
+    list.textContent = "";
+    list.hidden = false;
+    $("secretsEmpty").hidden = true;
+    for (let i = 0; i < 5; i++) {
+      list.append(el("div", { class: "skeleton" }, [
+        el("span", { class: "dot" }),
+        el("div", {}, [
+          el("div", { class: "sk-bar", style: "width:" + (38 + i * 9) + "%" }),
+          el("div", { class: "sk-bar short", style: "margin-top:6px" }),
+        ]),
+        el("div", { class: "sk-bar short", style: "width:72px" }),
+      ]));
+    }
+  }
+
+  async function loadState() {
+    skeletonSecrets();
+    try {
+      const data = await api("/api/state");
+      state.data = data;
+      $("navCount").textContent = data.secrets.length ? String(data.secrets.length) : "";
+      $("vaultPath").textContent = shortPath(data.vault);
+      $("vaultPath").title = data.vault || "";
+      const missing = data.secrets.filter((s) => s.status !== "present").length;
+      $("vaultState").textContent = data.secrets.length
+        ? missing ? missing + " missing" : data.secrets.length + " secrets"
+        : "vault empty";
+      $("vaultDot").className = "dot " + (missing ? "warn" : "ok");
+
+      const projectBtn = document.querySelector('#scopeSeg [data-scope="project"]');
+      projectBtn.disabled = !data.projectManifest;
+      if (!data.projectManifest && state.scope === "project") setScope("global");
+
+      renderSecrets();
+      renderAudit();
+    } catch (err) {
+      toast("Could not load the vault: " + err.message);
+      $("secretList").textContent = "";
+      $("secretsEmpty").hidden = false;
+    }
+  }
+
+  function renderSecrets() {
+    const list = $("secretList");
+    const empty = $("secretsEmpty");
+    const needle = state.filter.trim().toLowerCase();
+    const secrets = (state.data?.secrets || []).filter((s) => s.name.toLowerCase().includes(needle));
+
+    list.textContent = "";
+    if (!secrets.length) {
+      list.hidden = true;
+      empty.hidden = false;
+      const filtered = needle.length > 0;
+      empty.querySelector("h2").textContent = filtered ? "No matches" : "No secrets yet";
+      empty.querySelector("p").textContent = filtered
+        ? "Nothing matches “" + state.filter.trim() + "”."
+        : "Add your first secret — global secrets are available in every folder and to every agent.";
+      const code = empty.querySelector("code");
+      code.hidden = filtered;
+      code.textContent = "sm add --global AWS_ACCESS_KEY_ID";
+      $("emptyAdd").hidden = filtered;
+      return;
+    }
+
+    list.hidden = false;
+    empty.hidden = true;
+    for (const secret of secrets) list.append(secretRow(secret));
+  }
+
+  function secretRow(secret) {
+    const present = secret.status === "present";
+    const actions = el("div", { class: "secret-actions" }, [
+      el("button", {
+        class: "btn small ghost",
+        type: "button",
+        text: "Copy ref",
+        title: "Copy sm://" + secret.name,
+        onclick: () => copyRef(secret.name),
       }),
+      el("button", {
+        class: "btn small",
+        type: "button",
+        text: "Rotate",
+        onclick: () => openSheet("rotate", secret),
+      }),
+    ]);
+
+    const chips = el("div", { class: "chips" }, [
+      el("span", { class: "chip", text: secret.scope }),
+      el("span", { class: "chip transport", text: secret.transport }),
+      present ? null : el("span", { class: "chip warn", text: "missing" }),
+    ]);
+
+    return el("li", { class: "secret" }, [
+      el("span", { class: "dot " + (present ? "ok" : "warn"), title: present ? "present" : "missing" }),
+      el("div", { class: "secret-main" }, [
+        el("div", { class: "secret-name", text: secret.name, title: secret.name }),
+        el("div", { class: "secret-ref", text: secret.ref }),
+      ]),
+      chips,
+      actions,
+    ]);
+  }
+
+  function copyRef(name) {
+    const ref = "sm://" + name;
+    navigator.clipboard?.writeText(ref).then(
+      () => toast("Copied " + ref),
+      () => toast("Copy failed — use " + ref)
+    );
+  }
+
+  async function loadAgents(force = false) {
+    if (state.agents && !force) return renderAgents();
+    const list = $("agentList");
+    list.textContent = "";
+    for (let i = 0; i < 3; i++) {
+      list.append(el("div", { class: "skeleton" }, [
+        el("span", { class: "dot" }),
+        el("div", {}, [el("div", { class: "sk-bar", style: "width:34%" })]),
+        el("div", { class: "sk-bar short", style: "width:64px" }),
+      ]));
+    }
+    try {
+      state.agents = (await api("/api/agents")).agents;
+      $("navAgents").textContent = state.agents.length ? String(state.agents.length) : "";
+    } catch (err) {
+      state.agents = [];
+      toast("Could not detect agents: " + err.message);
+    }
+    renderAgents();
+  }
+
+  function renderAgents() {
+    const list = $("agentList");
+    list.textContent = "";
+    const agents = state.agents || [];
+
+    if (!agents.length) {
+      list.append(el("div", { class: "empty-inline" }, [
+        el("h3", { text: "No harnesses detected" }),
+        el("p", { text: "Install OpenCode, Claude Code, Hermes, Cursor or Claude Desktop, then refresh." }),
+      ]));
+      $("wireAll").disabled = true;
+      return;
+    }
+
+    $("wireAll").disabled = false;
+    for (const agent of agents) list.append(agentRow(agent));
+  }
+
+  function agentRow(agent) {
+    const wired = state.wired.has(agent.name);
+    const status = el("span", {
+      class: "agent-status" + (wired ? " ok" : ""),
+      text: wired ? "Connected" : "Not connected",
     });
-    msg.textContent = "Stored. Agents see it on their next call.";
-    $("value").value = "";
-    $("generate").value = "";
-    toast("Secret stored");
-    await refresh();
-  } catch (err) {
-    msg.className = "msg err";
-    msg.textContent = err.message;
-  }
-});
+    const btn = el("button", { class: "btn small", type: "button", text: wired ? "Reconnect" : "Connect" });
 
-function openRotate(name) {
-  rotateTarget = name;
-  $("rotateName").textContent = name;
-  $("rotateValue").value = "";
-  $("rotateDialog").showModal();
-  $("rotateValue").focus();
-}
-
-$("rotateCancel").addEventListener("click", () => $("rotateDialog").close());
-
-$("rotateForm").addEventListener("submit", async (ev) => {
-  ev.preventDefault();
-  if (!rotateTarget) return;
-  try {
-    await api("/api/rotate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: rotateTarget, value: $("rotateValue").value }),
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      btn.textContent = "Connecting…";
+      try {
+        const res = await api("/api/setup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ only: agent.name }),
+        });
+        const result = (res.results || [])[0];
+        if (result && result.failed) {
+          status.textContent = "Failed";
+          status.className = "agent-status err";
+          toast(result.status);
+        } else {
+          state.wired.add(agent.name);
+          status.textContent = "Connected";
+          status.className = "agent-status ok";
+          toast(agent.name + " connected");
+        }
+      } catch (err) {
+        status.textContent = "Failed";
+        status.className = "agent-status err";
+        toast(err.message);
+      }
+      btn.disabled = false;
+      btn.textContent = "Reconnect";
     });
-    $("rotateDialog").close();
-    toast("Rotated " + rotateTarget);
-    await refresh();
-  } catch (err) {
-    toast(err.message);
-  }
-});
 
-$("wire").addEventListener("click", async () => {
-  const out = $("wireOut");
-  out.classList.add("show");
-  out.textContent = "Detecting agents…";
-  try {
-    const res = await api("/api/setup", { method: "POST" });
-    out.textContent = res.output;
-    toast(res.exit === 0 ? "Agents wired" : "Some agents failed");
-  } catch (err) {
-    out.textContent = err.message;
+    return el("div", { class: "agent" }, [
+      el("div", { class: "agent-mark", text: agent.name.slice(0, 2).toUpperCase() }),
+      el("div", {}, [
+        el("div", { class: "agent-name", text: agent.name }),
+        el("div", { class: "agent-detail", text: agent.detail }),
+      ]),
+      status,
+      btn,
+    ]);
   }
-});
 
-$("scan").addEventListener("click", async () => {
-  const out = $("scanOut");
-  out.classList.add("show");
-  out.textContent = "Scanning…";
-  try {
-    const res = await api("/api/doctor", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ history: $("history").checked }),
+  $("wireAll").addEventListener("click", async (event) => {
+    const btn = event.currentTarget;
+    btn.disabled = true;
+    btn.textContent = "Connecting…";
+    try {
+      const res = await api("/api/setup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      const results = res.results || [];
+      for (const result of results) if (!result.failed) state.wired.add(result.name);
+      const failed = results.filter((r) => r.failed).length;
+      renderAgents();
+      toast(failed ? failed + " harness(es) failed" : "All harnesses connected");
+    } catch (err) {
+      toast(err.message);
+    }
+    btn.disabled = false;
+    btn.textContent = "Connect all";
+  });
+
+  $("scanBtn").addEventListener("click", async (event) => {
+    const btn = event.currentTarget;
+    const out = $("scanResult");
+    const badge = $("scanBadge");
+    btn.disabled = true;
+    btn.textContent = "Scanning…";
+    out.hidden = false;
+    out.textContent = "Scanning local files…";
+    badge.hidden = true;
+    try {
+      const res = await api("/api/doctor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ history: $("history").checked }),
+      });
+      out.textContent = res.output || "(no output)";
+      badge.hidden = false;
+      badge.textContent = res.exit === 0 ? "clean" : "findings";
+      badge.className = "badge " + (res.exit === 0 ? "ok" : "err");
+      toast(res.exit === 0 ? "Scan clean" : "Findings reported");
+    } catch (err) {
+      out.textContent = err.message;
+    }
+    btn.disabled = false;
+    btn.textContent = "Run scan";
+  });
+
+  function renderAudit() {
+    const list = $("auditList");
+    const entries = state.data?.audit || [];
+    list.textContent = "";
+    $("auditEmpty").hidden = entries.length > 0;
+    list.hidden = entries.length === 0;
+
+    for (const entry of entries) {
+      list.append(el("div", { class: "audit-row" }, [
+        el("span", { class: "audit-time", text: (entry.ts || "").slice(11, 19) }),
+        el("span", { class: "audit-action", text: entry.action || "inject" }),
+        el("span", {
+          class: "audit-cmd",
+          text: entry.cmd || (entry.secrets || []).join(", "),
+          title: entry.cmd || "",
+        }),
+      ]));
+    }
+  }
+
+  function setFormMode(mode) {
+    state.formMode = mode;
+    document.querySelectorAll("#modeSeg .seg-btn").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.mode === mode);
     });
-    out.textContent = res.output || "(no output)";
-    toast(res.exit === 0 ? "Clean" : "Findings reported");
-  } catch (err) {
-    out.textContent = err.message;
+    $("valueWrap").hidden = mode !== "value";
+    $("genWrap").hidden = mode !== "generate";
   }
-});
 
-refresh();
+  function setScope(scope) {
+    state.scope = scope;
+    document.querySelectorAll("#scopeSeg .seg-btn").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.scope === scope);
+    });
+  }
+
+  function openSheet(mode, secret) {
+    state.sheet = { mode, name: secret?.name || null };
+    $("sheetTitle").textContent = mode === "add" ? "Add secret" : "Rotate secret";
+    $("sheetSub").textContent = mode === "add"
+      ? "Stored in the vault. Agents use it without seeing it."
+      : "Every reference keeps working — the value is replaced in place.";
+    $("nameRow").hidden = mode !== "add";
+    $("rotateRow").hidden = mode !== "rotate";
+    $("rotateName").textContent = secret?.name || "";
+    $("sheetOptions").hidden = mode !== "add";
+    $("fName").value = "";
+    $("fValue").value = "";
+    $("fGenerate").value = "";
+    $("formError").hidden = true;
+    $("saveBtn").textContent = mode === "add" ? "Store secret" : "Rotate";
+    $("saveBtn").disabled = false;
+    setFormMode("value");
+    setScope("global");
+
+    $("scrim").hidden = false;
+    $("sheet").hidden = false;
+    requestAnimationFrame(() => {
+      $("scrim").classList.add("open");
+      $("sheet").classList.add("open");
+    });
+    setTimeout(() => (mode === "add" ? $("fName") : $("fValue")).focus(), 60);
+  }
+
+  function closeSheet() {
+    state.sheet = null;
+    $("scrim").classList.remove("open");
+    $("sheet").classList.remove("open");
+    setTimeout(() => {
+      $("scrim").hidden = true;
+      $("sheet").hidden = true;
+    }, 200);
+  }
+
+  $("secretForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!state.sheet) return;
+    const error = $("formError");
+    error.hidden = true;
+
+    const value = state.formMode === "value" ? $("fValue").value : "";
+    const generate = state.formMode === "generate" ? $("fGenerate").value.trim() : "";
+    if (!value && !generate) {
+      error.textContent = "Enter a value or a generate spec.";
+      error.hidden = false;
+      return;
+    }
+
+    const body = { value, generate };
+    if (state.sheet.mode === "add") {
+      const name = $("fName").value.trim();
+      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
+        error.textContent = "Use letters, digits and underscore, starting with a letter or underscore.";
+        error.hidden = false;
+        return;
+      }
+      body.name = name;
+      body.scope = state.scope;
+      body.transport = $("fTransport").value;
+    } else {
+      body.name = state.sheet.name;
+    }
+
+    const mode = state.sheet.mode;
+    const btn = $("saveBtn");
+    btn.disabled = true;
+    btn.textContent = "Saving…";
+    try {
+      await api(mode === "add" ? "/api/add" : "/api/rotate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      closeSheet();
+      toast(mode === "add" ? "Secret stored" : "Secret rotated");
+      await loadState();
+    } catch (err) {
+      error.textContent = err.message;
+      error.hidden = false;
+      btn.disabled = false;
+      btn.textContent = mode === "add" ? "Store secret" : "Rotate";
+    }
+  });
+
+  document.querySelectorAll("#modeSeg .seg-btn").forEach((btn) => {
+    btn.addEventListener("click", () => setFormMode(btn.dataset.mode));
+  });
+  document.querySelectorAll("#scopeSeg .seg-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (!btn.disabled) setScope(btn.dataset.scope);
+    });
+  });
+
+  document.querySelectorAll(".nav-item").forEach((btn) => {
+    btn.addEventListener("click", () => setView(btn.dataset.view));
+  });
+
+  $("addBtn").addEventListener("click", () => openSheet("add"));
+  $("emptyAdd").addEventListener("click", () => openSheet("add"));
+  $("refresh").addEventListener("click", () => {
+    loadState();
+    if (state.view === "agents") loadAgents(true);
+  });
+  $("filter").addEventListener("input", (event) => {
+    state.filter = event.target.value;
+    renderSecrets();
+  });
+  $("scrim").addEventListener("click", closeSheet);
+  $("sheetClose").addEventListener("click", closeSheet);
+  $("cancelBtn").addEventListener("click", closeSheet);
+
+  $("sheet").addEventListener("keydown", (event) => {
+    if (event.key !== "Tab") return;
+    const focusable = Array.from(
+      $("sheet").querySelectorAll("button, input, select")
+    ).filter((node) => !node.disabled && node.offsetParent !== null);
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  });
+
+  document.addEventListener("keydown", (event) => {
+    const typing = ["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement?.tagName);
+    if (event.key === "Escape" && state.sheet) {
+      closeSheet();
+      return;
+    }
+    if (typing || state.sheet) return;
+    if (event.key === "/") {
+      event.preventDefault();
+      setView("secrets");
+      $("filter").focus();
+    } else if (event.key.toLowerCase() === "n") {
+      event.preventDefault();
+      openSheet("add");
+    }
+  });
+
+  setView("secrets");
+  loadState();
+})();
 </script>
 </body>
 </html>

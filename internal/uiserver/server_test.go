@@ -160,3 +160,20 @@ func TestRotate(t *testing.T) {
 		t.Errorf("value = %q", val)
 	}
 }
+
+func TestAgentsEndpoint(t *testing.T) {
+	_, host, token := newTestServer(t)
+	code, body := do(t, "GET", sURL(host, "/api/agents"), token, "")
+	if code != 200 {
+		t.Fatalf("code = %d: %s", code, body)
+	}
+	var res struct {
+		Agents []agentView `json:"agents"`
+	}
+	if err := json.Unmarshal(body, &res); err != nil {
+		t.Fatal(err)
+	}
+	if res.Agents == nil {
+		t.Fatal("agents field missing from response")
+	}
+}

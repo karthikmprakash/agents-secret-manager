@@ -15,6 +15,7 @@ import (
 	"github.com/karthikmprakash/agents-secret-manager/internal/keys"
 	"github.com/karthikmprakash/agents-secret-manager/internal/manifest"
 	"github.com/karthikmprakash/agents-secret-manager/internal/store/vaultfile"
+	"github.com/karthikmprakash/agents-secret-manager/internal/wireup"
 )
 
 // cmdOnboard is the first-run wizard: vault, secrets, agent wiring, next steps.
@@ -174,13 +175,13 @@ func cmdOnboard(args []string) error {
 	if err != nil {
 		return err
 	}
-	targets := detectTargets(exe, home)
+	targets := wireup.Detect(exe, home)
 	if len(targets) == 0 {
 		fmt.Println("  no supported agents detected")
 	} else {
 		label := make([]string, len(targets))
 		for i, t := range targets {
-			label[i] = t.name
+			label[i] = t.Name
 		}
 		fmt.Printf("  detected: %s\n", strings.Join(label, ", "))
 		configure := true
@@ -193,12 +194,12 @@ func cmdOnboard(args []string) error {
 			fmt.Println("  skipped — run `sm setup` any time")
 		} else {
 			for _, t := range targets {
-				status, err := t.apply()
+				status, err := t.Apply()
 				if err != nil {
-					fmt.Printf("  !! %-14s %v\n", t.name, err)
+					fmt.Printf("  !! %-14s %v\n", t.Name, err)
 					continue
 				}
-				fmt.Printf("  ✓ %-14s %s\n", t.name, status)
+				fmt.Printf("  ✓ %-14s %s\n", t.Name, status)
 			}
 		}
 	}
