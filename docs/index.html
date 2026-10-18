@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>sm: local secrets for AI coding agents</title>
+  <meta name="description" content="One encrypted vault on your Mac. Agents run commands with credentials and never receive the values. No account, cloud sync or telemetry.">
+  <link rel="canonical" href="https://karthikmprakash.github.io/agents-secret-manager/">
+  <meta name="theme-color" content="#0b0c0e" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#fafafa" media="(prefers-color-scheme: light)">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="sm: local secrets for AI coding agents">
+  <meta property="og:description" content="One encrypted vault on your Mac. Agents run commands with credentials and never receive the values.">
+  <meta property="og:url" content="https://karthikmprakash.github.io/agents-secret-manager/">
+  <meta property="og:image" content="https://karthikmprakash.github.io/agents-secret-manager/assets/sm-secrets.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b0c0e'/%3E%3Ctext x='32' y='42' font-family='ui-monospace,monospace' font-size='26' font-weight='700' fill='%2334d399' text-anchor='middle'%3Esm%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="landing.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="nav">
+    <div class="wrap nav-inner">
+      <a class="brand" href="#top" aria-label="sm home">
+        <span class="brand-mark" aria-hidden="true">sm</span>
+        <span class="brand-name">sm</span>
+      </a>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="#features">Features</a>
+        <a href="#architecture">Architecture</a>
+        <a href="#security">Security</a>
+        <a href="https://github.com/karthikmprakash/agents-secret-manager/blob/main/docs/GUIDE.md">Guide</a>
+      </nav>
+      <div class="nav-actions">
+        <a class="btn btn-primary" href="#install">Install sm</a>
+        <a class="btn btn-ghost" href="https://github.com/karthikmprakash/agents-secret-manager">GitHub</a>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero" id="top">
+      <div class="wrap hero-grid">
+        <div class="hero-copy">
+          <p class="eyebrow">Local-only secrets for coding agents</p>
+          <h1>Your agents need the result, not the key.</h1>
+          <p class="lede">One encrypted vault on your Mac. Agents run commands with credentials and never receive the values.</p>
+          <div class="cta-row">
+            <a class="btn btn-primary btn-lg" href="#install">Install sm</a>
+            <a class="btn btn-ghost btn-lg" href="https://github.com/karthikmprakash/agents-secret-manager">View on GitHub</a>
+          </div>
+        </div>
+        <div class="hero-shot reveal">
+          <div class="shot">
+            <img src="assets/sm-secrets.png" alt="sm local UI showing grouped secrets, config entries and a global scope" width="2880" height="1920" fetchpriority="high">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="strip" aria-label="Compatibility">
+      <div class="wrap strip-inner">
+        <span class="strip-label">Works with</span>
+        <ul class="chips">
+          <li>OpenCode</li>
+          <li>Claude Code</li>
+          <li>Hermes</li>
+          <li>Codex</li>
+          <li>DeepSeek Harness</li>
+          <li>Cursor</li>
+          <li>Claude Desktop</li>
+          <li>Gemini CLI</li>
+          <li>Windsurf</li>
+        </ul>
+        <span class="strip-meta">macOS 13+ · MIT · no account</span>
+      </div>
+    </section>
+
+    <section class="section" id="features">
+      <div class="wrap">
+        <div class="section-head">
+          <h2>Built for the way agents actually work.</h2>
+          <p>Values stay in the vault. Agents get two tools and a redacted result.</p>
+        </div>
+
+        <div class="bento">
+          <article class="cell cell-dark cell-wide">
+            <h3>There is no <code>secret_get</code></h3>
+            <p>Agents list names and run commands. They cannot pull a value into model context.</p>
+            <pre class="terminal" aria-label="MCP tools"><span class="t-dim">$</span> secret_list
+  names · groups · transport · status
+
+<span class="t-dim">$</span> secret_run
+  exit code + captured output
+  <span class="t-ok">exact sensitive values → [redacted:NAME]</span></pre>
+          </article>
+
+          <article class="cell cell-soft">
+            <h3>One vault, every project</h3>
+            <p>Global secrets plus reference-only project manifests. Repositories never hold values.</p>
+            <pre class="code" aria-label="Project manifest example"><span class="t-dim"># .agentsecrets.toml</span>
+[secrets.GITHUB_TOKEN]
+ref = <span class="t-str">"vault://global/GITHUB_TOKEN"</span></pre>
+          </article>
+
+          <article class="cell cell-half">
+            <h3>Paste anything</h3>
+            <p>Drop <code>.env</code>, JSON, YAML, setup commands, curl headers or a Cloudflare R2 export. Parsed locally, reviewed by you.</p>
+            <pre class="code" aria-label="Import review example">STRIPE_BASE_URL=...   <span class="t-dim">config</span>
+Access Key ID ...     <span class="t-ok">secret</span>
+S3 API endpoint ...   <span class="t-dim">config</span></pre>
+          </article>
+
+          <article class="cell cell-half">
+            <h3>Groups and plain config</h3>
+            <p>Keep <code>BASE_URL</code> next to its <code>API_KEY</code>. Mark non-secret config so it is not masked or reported as a leak.</p>
+            <ul class="tags">
+              <li>stripe</li>
+              <li>cloudflare</li>
+              <li>openai</li>
+              <li>config</li>
+            </ul>
+          </article>
+
+          <article class="cell cell-full cell-line">
+            <h3>Local by default</h3>
+            <p>No account, cloud sync, telemetry or model calls. The vault is age-encrypted and the identity lives in the macOS Keychain. Recovery is a passphrase-encrypted file you own.</p>
+            <p class="meta-line"><span>age X25519</span><span>Keychain identity</span><span>hash-chained audit</span><span>no network</span></p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-tight" id="architecture">
+      <div class="wrap">
+        <div class="section-head">
+          <h2>One path in, one path out.</h2>
+          <p>Agents call MCP. Selected values are injected into a child process. Only the exit code and redacted output return.</p>
+        </div>
+        <figure class="figure reveal">
+          <img src="assets/sm-architecture.png" alt="sm architecture: an AI coding agent calls the MCP server, which decrypts selected values and injects them into a child command; only redacted output returns" width="2880" height="1800" loading="lazy">
+          <figcaption>
+            <span>Runtime architecture, generated with Archify.</span>
+            <a href="https://github.com/karthikmprakash/agents-secret-manager/blob/main/docs/ARCHITECTURE.md">Read the architecture notes</a>
+          </figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="section" id="security">
+      <div class="wrap security-grid">
+        <div>
+          <p class="eyebrow">Honest boundaries</p>
+          <h2>Useful, not magic.</h2>
+          <p class="lede">sm reduces accidental exposure. It does not sandbox code that already runs as you.</p>
+          <a class="link" href="https://github.com/karthikmprakash/agents-secret-manager/blob/main/SECURITY.md">Read the threat model</a>
+        </div>
+        <ul class="boundary-list">
+          <li>
+            <h3>Children receive plaintext</h3>
+            <p>Arbitrary code can encode or exfiltrate credentials. This is not an egress firewall.</p>
+          </li>
+          <li>
+            <h3>Redaction is exact-value masking</h3>
+            <p>Encoded values, raw TTY output and alternate channels are outside the guarantee.</p>
+          </li>
+          <li>
+            <h3>Selection is cooperative</h3>
+            <p><code>--only</code> and <code>service</code> choose values for well-behaved callers. They are not authorization.</p>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section install" id="install">
+      <div class="wrap install-grid">
+        <div class="install-copy">
+          <h2>Install sm in a minute.</h2>
+          <p>Download the release binary for your Mac, or build from source. No installer, no account, no background service.</p>
+          <div class="cta-row">
+            <a class="btn btn-primary" href="https://github.com/karthikmprakash/agents-secret-manager/releases/latest">Install sm</a>
+            <a class="btn btn-ghost" href="https://github.com/karthikmprakash/agents-secret-manager/releases">Release assets</a>
+          </div>
+        </div>
+        <ol class="steps">
+          <li>
+            <div class="step-head">
+              <h3>Get the binary</h3>
+              <span>Apple Silicon or Intel</span>
+            </div>
+            <pre class="code" aria-label="Download example"><span class="t-dim"># Apple Silicon</span>
+gh release download v0.4.0 \
+  -R karthikmprakash/agents-secret-manager \
+  -p sm-darwin-arm64</pre>
+          </li>
+          <li>
+            <div class="step-head">
+              <h3>Install and verify</h3>
+              <span>SHA-256 included</span>
+            </div>
+            <pre class="code" aria-label="Install example">shasum -a 256 -c sm-darwin-arm64.sha256
+chmod +x sm-darwin-arm64
+mkdir -p ~/.local/bin
+mv sm-darwin-arm64 ~/.local/bin/sm</pre>
+          </li>
+          <li>
+            <div class="step-head">
+              <h3>Set up once</h3>
+              <span>Vault, secrets, agents</span>
+            </div>
+            <pre class="code" aria-label="Onboarding example">sm onboard
+sm ui</pre>
+          </li>
+        </ol>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap footer-grid">
+      <div class="footer-brand">
+        <a class="brand" href="#top" aria-label="sm home">
+          <span class="brand-mark" aria-hidden="true">sm</span>
+          <span class="brand-name">sm</span>
+        </a>
+        <p>Local secrets for AI coding agents.</p>
+      </div>
+      <nav aria-label="Product">
+        <h3>Product</h3>
+        <a href="#features">Features</a>
+        <a href="#architecture">Architecture</a>
+        <a href="#security">Security</a>
+        <a href="#install">Install sm</a>
+      </nav>
+      <nav aria-label="Docs">
+        <h3>Docs</h3>
+        <a href="https://github.com/karthikmprakash/agents-secret-manager/blob/main/docs/GUIDE.md">Guide</a>
+        <a href="https://github.com/karthikmprakash/agents-secret-manager/blob/main/docs/ARCHITECTURE.md">Architecture notes</a>
+        <a href="https://github.com/karthikmprakash/agents-secret-manager/blob/main/SECURITY.md">Security policy</a>
+        <a href="https://github.com/karthikmprakash/agents-secret-manager/blob/main/CHANGELOG.md">Changelog</a>
+      </nav>
+      <nav aria-label="Project">
+        <h3>Project</h3>
+        <a href="https://github.com/karthikmprakash/agents-secret-manager">GitHub</a>
+        <a href="https://github.com/karthikmprakash/agents-secret-manager/releases">Releases</a>
+        <a href="https://github.com/karthikmprakash/agents-secret-manager/issues">Issues</a>
+        <a href="https://github.com/karthikmprakash/agents-secret-manager/blob/main/LICENSE">MIT License</a>
+      </nav>
+    </div>
+    <div class="wrap footer-bottom">
+      <span>MIT © 2026 Karthik M Prakash</span>
+      <span>Not affiliated with any harness vendor. Product names are trademarks of their owners.</span>
+    </div>
+  </footer>
+
+  <script src="landing.js" defer></script>
+</body>
+</html>

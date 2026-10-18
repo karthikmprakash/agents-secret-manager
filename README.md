@@ -8,6 +8,7 @@ without ever returning the values to the model. Agents get `secret_list` and
 
 [![CI](https://github.com/karthikmprakash/agents-secret-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/karthikmprakash/agents-secret-manager/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/karthikmprakash/agents-secret-manager?display_name=tag)](https://github.com/karthikmprakash/agents-secret-manager/releases/latest)
+[![Website](https://img.shields.io/badge/website-landing%20page-047857)](https://karthikmprakash.github.io/agents-secret-manager/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Go 1.27+](https://img.shields.io/badge/go-1.27%2B-00ADD8.svg)](go.mod)
 [![macOS 13+](https://img.shields.io/badge/platform-macOS%2013%2B-lightgrey.svg)](#install)
@@ -248,6 +249,7 @@ many harnesses and keeps values out of the MCP surface without a subscription.
 
 ## Docs
 
+- [Landing page](https://karthikmprakash.github.io/agents-secret-manager/) — product overview, screenshots and install.
 - [Guide](docs/GUIDE.md) — commands, imports, groups, projects, recovery and limits.
 - [Architecture](docs/ARCHITECTURE.md) — components, data flow and invariants.
 - [Contributing](CONTRIBUTING.md) — setup, adapter checklist and style.

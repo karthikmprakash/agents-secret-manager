@@ -7,6 +7,11 @@ the `0.x` series.
 
 ## [Unreleased]
 
+### Added
+
+- A self-contained GitHub Pages landing page with the product screenshot,
+  Archify architecture diagram, install steps and security boundaries.
+
 ## [0.4.0] - 2026-10-17
 
 Editable local import review, broader deterministic parsing, group management,
