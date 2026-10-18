@@ -14,6 +14,15 @@ the `0.x` series.
 - The SM monogram brand pack across the Mac app icon, local UI, README and
   landing page, including favicons, web manifest and a social card.
 
+### Changed
+
+- Landing page now shares the app's cool-neutral colors, ink actions and blue
+  accent; refreshed light/dark screenshots include the current app branding.
+- README uses an opaque logo tile for contrast on any GitHub theme. Added
+  repeatable dummy-data screenshot capture and responsive landing-page tests.
+- Install instructions download both the binary and its checksum, with an
+  Apple Silicon/Intel selector and working clipboard fallback.
+
 ## [0.4.0] - 2026-10-17
 
 Editable local import review, broader deterministic parsing, group management,

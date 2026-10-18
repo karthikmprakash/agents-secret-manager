@@ -2,11 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>sm: local secrets for AI coding agents</title>
   <meta name="description" content="One encrypted vault on your Mac. Agents run commands with credentials and never receive the values. No account, cloud sync or telemetry.">
   <link rel="canonical" href="https://karthikmprakash.github.io/agents-secret-manager/">
-  <meta name="theme-color" content="#000000">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0b0d11" media="(prefers-color-scheme: dark)">
   <meta property="og:type" content="website">
   <meta property="og:title" content="sm: local secrets for AI coding agents">
   <meta property="og:description" content="One encrypted vault on your Mac. Agents run commands with credentials and never receive the values.">
@@ -29,18 +31,19 @@
 
   <header class="nav">
     <div class="wrap nav-inner">
-      <a class="brand" href="#top" aria-label="sm home">
-        <img class="brand-logo" src="assets/brand/logo-primary.svg" alt="sm" height="34">
+      <a class="brand" href="#top">
+        <img class="brand-logo" src="assets/brand/icon-light-180.png" alt="" width="40" height="40">
+        <span>sm<span class="brand-sub">secrets for agents</span></span>
       </a>
       <nav class="nav-links" aria-label="Primary">
+        <a href="#workflow">How it works</a>
         <a href="#features">Features</a>
-        <a href="#architecture">Architecture</a>
         <a href="#security">Security</a>
         <a href="https://github.com/karthikmprakash/agents-secret-manager/blob/main/docs/GUIDE.md">Guide</a>
       </nav>
       <div class="nav-actions">
         <a class="btn btn-primary" href="#install">Install sm</a>
-        <a class="btn btn-ghost" href="https://github.com/karthikmprakash/agents-secret-manager">GitHub</a>
+        <a class="nav-github" href="https://github.com/karthikmprakash/agents-secret-manager">GitHub</a>
       </div>
     </div>
   </header>
@@ -49,25 +52,29 @@
     <section class="hero" id="top">
       <div class="wrap hero-grid">
         <div class="hero-copy">
-          <p class="eyebrow">Local-only secrets for coding agents</p>
-          <h1>Your agents need the result, not the key.</h1>
-          <p class="lede">One encrypted vault on your Mac. Agents run commands with credentials and never receive the values.</p>
+          <p class="eyebrow">Open source. On your Mac.</p>
+          <h1>Keep the keys.<br>Share the results.</h1>
+          <p class="lede">Give coding agents credentials at runtime, not in chat. One local vault, shared across your projects.</p>
           <div class="cta-row">
             <a class="btn btn-primary btn-lg" href="#install">Install sm</a>
-            <a class="btn btn-ghost btn-lg" href="https://github.com/karthikmprakash/agents-secret-manager">View on GitHub</a>
+            <a class="text-link" href="https://github.com/karthikmprakash/agents-secret-manager">GitHub <span aria-hidden="true">↗</span></a>
           </div>
         </div>
-        <div class="hero-shot reveal">
-          <div class="shot">
-            <img src="assets/sm-secrets.png" alt="sm local UI showing grouped secrets, config entries and a global scope" width="2880" height="1920" fetchpriority="high">
-          </div>
-        </div>
+        <figure class="hero-shot">
+          <a class="screenshot-link" href="assets/sm-secrets.png" aria-label="Open full-size sm app screenshot">
+            <picture>
+              <source media="(prefers-color-scheme: dark)" srcset="assets/sm-secrets-dark.png">
+              <img src="assets/sm-secrets.png" alt="Current sm app with the new logo, Cloudflare, OpenAI and Stripe groups, and config labels. Demo data." width="2560" height="1600" fetchpriority="high">
+            </picture>
+          </a>
+          <figcaption><span>One vault. No credentials on display.</span><span>Actual app · demo data</span></figcaption>
+        </figure>
       </div>
     </section>
 
     <section class="strip" aria-label="Compatibility">
       <div class="wrap strip-inner">
-        <span class="strip-label">Works with</span>
+        <p class="strip-label">Connect once.<br><strong>Use your usual agents.</strong></p>
         <ul class="chips">
           <li>OpenCode</li>
           <li>Claude Code</li>
@@ -79,87 +86,79 @@
           <li>Gemini CLI</li>
           <li>Windsurf</li>
         </ul>
-        <span class="strip-meta">macOS 13+ · MIT · no account</span>
       </div>
     </section>
 
-    <section class="section" id="features">
+    <section class="section" id="workflow">
       <div class="wrap">
         <div class="section-head">
-          <h2>Built for the way agents actually work.</h2>
-          <p>Values stay in the vault. Agents get two tools and a redacted result.</p>
+          <h2>The command needs the key.<br>The conversation doesn’t.</h2>
+          <p>Store a credential once. Your agent chooses it by name, runs the command, and gets the result back.</p>
         </div>
-
-        <div class="bento">
-          <article class="cell cell-dark cell-wide">
-            <h3>There is no <code>secret_get</code></h3>
-            <p>Agents list names and run commands. They cannot pull a value into model context.</p>
-            <pre class="terminal" aria-label="MCP tools"><span class="t-dim">$</span> secret_list
-  names · groups · transport · status
-
-<span class="t-dim">$</span> secret_run
-  exit code + captured output
-  <span class="t-ok">exact sensitive values → [redacted:NAME]</span></pre>
-          </article>
-
-          <article class="cell cell-soft">
-            <h3>One vault, every project</h3>
-            <p>Global secrets plus reference-only project manifests. Repositories never hold values.</p>
-            <pre class="code" aria-label="Project manifest example"><span class="t-dim"># .agentsecrets.toml</span>
-[secrets.GITHUB_TOKEN]
-ref = <span class="t-str">"vault://global/GITHUB_TOKEN"</span></pre>
-          </article>
-
-          <article class="cell cell-half">
-            <h3>Paste anything</h3>
-            <p>Drop <code>.env</code>, JSON, YAML, setup commands, curl headers or a Cloudflare R2 export. Parsed locally, reviewed by you.</p>
-            <pre class="code" aria-label="Import review example">STRIPE_BASE_URL=...   <span class="t-dim">config</span>
-Access Key ID ...     <span class="t-ok">secret</span>
-S3 API endpoint ...   <span class="t-dim">config</span></pre>
-          </article>
-
-          <article class="cell cell-half">
-            <h3>Groups and plain config</h3>
-            <p>Keep <code>BASE_URL</code> next to its <code>API_KEY</code>. Mark non-secret config so it is not masked or reported as a leak.</p>
-            <ul class="tags">
-              <li>stripe</li>
-              <li>cloudflare</li>
-              <li>openai</li>
-              <li>config</li>
-            </ul>
-          </article>
-
-          <article class="cell cell-full cell-line">
-            <h3>Local by default</h3>
-            <p>No account, cloud sync, telemetry or model calls. The vault is age-encrypted and the identity lives in the macOS Keychain. Recovery is a passphrase-encrypted file you own.</p>
-            <p class="meta-line"><span>age X25519</span><span>Keychain identity</span><span>hash-chained audit</span><span>no network</span></p>
-          </article>
+        <div class="workflow-grid">
+          <ol class="journey">
+            <li><span class="step-number">01</span><div><h3>Store it locally</h3><p>age-encrypted on disk. The vault identity stays in your macOS Keychain.</p></div></li>
+            <li><span class="step-number">02</span><div><h3>Inject it at runtime</h3><p>The MCP server passes selected credentials to the child command as environment variables.</p></div></li>
+            <li><span class="step-number">03</span><div><h3>Return the result</h3><p>Your agent gets an exit code and captured output with exact sensitive values masked.</p></div></li>
+          </ol>
+          <div class="protocol">
+            <div class="panel-caption"><span>Two tools. No secret_get.</span><span class="mono">MCP / stdio</span></div>
+            <dl class="tool-list">
+              <div><dt>secret_list</dt><dd>Names, groups and status. No values.</dd></div>
+              <div><dt>secret_run</dt><dd>Run a command with selected credentials.</dd></div>
+            </dl>
+            <div class="code-block">
+              <div class="code-head"><span>Example tool arguments</span></div>
+              <pre class="code"><code>{
+  <span class="t-key">"command"</span>: <span class="t-str">"aws s3 ls"</span>,
+  <span class="t-key">"service"</span>: <span class="t-str">"aws"</span>
+}</code></pre>
+            </div>
+            <p class="protocol-note">This reduces accidental exposure, not the authority of the child process. <a href="#security">Read the boundaries.</a></p>
+          </div>
         </div>
       </div>
     </section>
 
-    <section class="section section-tight" id="architecture">
+    <section class="section features" id="features">
       <div class="wrap">
         <div class="section-head">
-          <h2>One path in, one path out.</h2>
-          <p>Agents call MCP. Selected values are injected into a child process. Only the exit code and redacted output return.</p>
+          <h2>Less setup. Fewer copies.</h2>
+          <p>Move credentials out of scattered files and into a small, local tool you can inspect.</p>
         </div>
-        <figure class="figure reveal">
-          <img src="assets/sm-architecture.png" alt="sm architecture: an AI coding agent calls the MCP server, which decrypts selected values and injects them into a child command; only redacted output returns" width="2880" height="1800" loading="lazy">
-          <figcaption>
-            <span>Runtime architecture, generated with Archify.</span>
-            <a href="https://github.com/karthikmprakash/agents-secret-manager/blob/main/docs/ARCHITECTURE.md">Read the architecture notes</a>
-          </figcaption>
-        </figure>
+        <div class="feature-grid">
+          <article class="import-feature">
+            <div class="feature-copy"><h3>Paste, review, save.</h3><p>Import .env, JSON, YAML or a provider’s credential block. Edit the names, groups and types before anything is saved.</p></div>
+            <figure>
+              <picture>
+                <source media="(prefers-color-scheme: dark)" srcset="assets/sm-import-dark.png">
+                <img src="assets/sm-import.png" alt="Actual sm import review: GitHub token name, group, masked value and Secret type" width="1262" height="666" loading="lazy">
+              </picture>
+              <figcaption>Parsed on your device. Never sent to a model.</figcaption>
+            </figure>
+          </article>
+          <div class="feature-stack">
+            <article><h3>A group for each service.</h3><p>Keep a base URL beside its API key. Mark plain config separately, and inject a whole group when you need it.</p><div class="example-command"><code>sm exec --service stripe -- ./app</code></div></article>
+            <article><h3>References, not duplicated keys.</h3><p>Use global secrets in any folder. Project manifests and .env references point to values without containing them.</p><div class="example-command"><code>GITHUB_TOKEN=sm://GITHUB_TOKEN</code></div></article>
+            <article><h3>A backup you own.</h3><p>Save a passphrase-encrypted archive. Verify it locally and restore into an empty vault on another Mac.</p><a class="text-link" href="https://github.com/karthikmprakash/agents-secret-manager/blob/main/docs/GUIDE.md#recovery">Recovery guide <span aria-hidden="true">↗</span></a></article>
+          </div>
+        </div>
+        <details class="architecture-details" id="architecture">
+          <summary><span>See what happens under the hood</span><span class="summary-meta">Runtime architecture <span aria-hidden="true">+</span></span></summary>
+          <figure class="figure">
+            <a href="assets/sm-architecture.png" aria-label="Open full-size architecture diagram"><img src="assets/sm-architecture.png" alt="sm architecture: agents call MCP, selected credentials reach a child command, and redacted output returns" width="2880" height="1800" loading="lazy"></a>
+            <figcaption>Created with Archify. <a href="https://github.com/karthikmprakash/agents-secret-manager/blob/main/docs/ARCHITECTURE.md">Architecture notes ↗</a></figcaption>
+          </figure>
+        </details>
       </div>
     </section>
 
     <section class="section" id="security">
       <div class="wrap security-grid">
         <div>
-          <p class="eyebrow">Honest boundaries</p>
-          <h2>Useful, not magic.</h2>
-          <p class="lede">sm reduces accidental exposure. It does not sandbox code that already runs as you.</p>
+          <p class="eyebrow">Trust starts with the limits</p>
+          <h2>Local doesn’t mean<br>invulnerable.</h2>
+          <p class="lede">No account, cloud sync or telemetry. But sm is not a sandbox, and it shouldn’t pretend to be one.</p>
           <a class="link" href="https://github.com/karthikmprakash/agents-secret-manager/blob/main/SECURITY.md">Read the threat model</a>
         </div>
         <ul class="boundary-list">
@@ -182,43 +181,43 @@ S3 API endpoint ...   <span class="t-dim">config</span></pre>
     <section class="section install" id="install">
       <div class="wrap install-grid">
         <div class="install-copy">
-          <h2>Install sm in a minute.</h2>
-          <p>Download the release binary for your Mac, or build from source. No installer, no account, no background service.</p>
+          <h2>Your keys.<br>Your machine.</h2>
+          <p>Start with the CLI, then open the local UI. Free, open source and built for individual developers.</p>
           <div class="cta-row">
-            <a class="btn btn-primary" href="https://github.com/karthikmprakash/agents-secret-manager/releases/latest">Install sm</a>
-            <a class="btn btn-ghost" href="https://github.com/karthikmprakash/agents-secret-manager/releases">Release assets</a>
+            <a class="text-link" href="https://github.com/karthikmprakash/agents-secret-manager/releases/latest">Release notes <span aria-hidden="true">↗</span></a>
           </div>
         </div>
-        <ol class="steps">
+        <div class="install-panel">
+          <div class="install-panel-head"><span>macOS 13+</span><div class="processor-switch" role="group" aria-label="Mac processor" hidden><button type="button" data-arch="arm64" aria-pressed="true">Apple Silicon</button><button type="button" data-arch="amd64" aria-pressed="false">Intel</button></div></div>
+          <ol class="steps">
           <li>
             <div class="step-head">
-              <h3>Get the binary</h3>
-              <span>Apple Silicon or Intel</span>
+              <h3>1. Download and verify</h3>
             </div>
-            <pre class="code" aria-label="Download example"><span class="t-dim"># Apple Silicon, latest release</span>
-gh release download \
+            <div class="code-block"><div class="code-head"><span>Latest release · GitHub CLI</span></div><pre class="code" aria-label="Download and verify commands"><code id="download-code">gh release download \
   -R karthikmprakash/agents-secret-manager \
-  -p sm-darwin-arm64</pre>
+  -p 'sm-darwin-arm64*'
+shasum -a 256 -c sm-darwin-arm64.sha256</code></pre></div>
           </li>
           <li>
             <div class="step-head">
-              <h3>Install and verify</h3>
-              <span>SHA-256 included</span>
+              <h3>2. Install the binary</h3>
             </div>
-            <pre class="code" aria-label="Install example">shasum -a 256 -c sm-darwin-arm64.sha256
-chmod +x sm-darwin-arm64
+            <div class="code-block"><div class="code-head"><span>Terminal</span></div><pre class="code" aria-label="Install commands"><code id="install-code">chmod +x sm-darwin-arm64
 mkdir -p ~/.local/bin
-mv sm-darwin-arm64 ~/.local/bin/sm</pre>
+mv sm-darwin-arm64 ~/.local/bin/sm</code></pre></div>
           </li>
           <li>
             <div class="step-head">
-              <h3>Set up once</h3>
-              <span>Vault, secrets, agents</span>
+              <h3>3. Set up once</h3>
             </div>
-            <pre class="code" aria-label="Onboarding example">sm onboard
-sm ui</pre>
+            <div class="code-block"><div class="code-head"><span>Vault, secrets, agents</span></div><pre class="code" aria-label="Onboarding commands"><code>sm onboard
+sm ui</code></pre></div>
           </li>
-        </ol>
+          </ol>
+          <p class="install-note">Use an empty download folder. Add <code>~/.local/bin</code> to your PATH if needed. Releases are not notarized.</p>
+          <a class="text-link" href="https://github.com/karthikmprakash/agents-secret-manager#install">Prefer to build from source? ↗</a>
+        </div>
       </div>
     </section>
   </main>
@@ -226,24 +225,16 @@ sm ui</pre>
   <footer class="footer">
     <div class="wrap footer-grid">
       <div class="footer-brand">
-        <a class="brand" href="#top" aria-label="sm home">
-          <img class="brand-logo" src="assets/brand/logo-primary.svg" alt="sm" height="34">
+        <a class="brand" href="#top">
+          <img class="brand-logo" src="assets/brand/icon-light-180.png" alt="" width="40" height="40"><span>sm<span class="brand-sub">secrets for agents</span></span>
         </a>
         <p>Local secrets for AI coding agents.</p>
       </div>
-      <nav aria-label="Product">
-        <h3>Product</h3>
-        <a href="#features">Features</a>
-        <a href="#architecture">Architecture</a>
-        <a href="#security">Security</a>
-        <a href="#install">Install sm</a>
-      </nav>
       <nav aria-label="Docs">
         <h3>Docs</h3>
         <a href="https://github.com/karthikmprakash/agents-secret-manager/blob/main/docs/GUIDE.md">Guide</a>
         <a href="https://github.com/karthikmprakash/agents-secret-manager/blob/main/docs/ARCHITECTURE.md">Architecture notes</a>
         <a href="https://github.com/karthikmprakash/agents-secret-manager/blob/main/SECURITY.md">Security policy</a>
-        <a href="https://github.com/karthikmprakash/agents-secret-manager/blob/main/CHANGELOG.md">Changelog</a>
       </nav>
       <nav aria-label="Project">
         <h3>Project</h3>

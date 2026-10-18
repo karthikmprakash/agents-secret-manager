@@ -46,6 +46,21 @@ Tests never touch your real vault or your installed harness configs. They use
 identity). Never set `SM_IDENTITY` in an agent configuration; it is a test
 override and is stripped from task children.
 
+### Landing page and screenshots
+
+The GitHub Pages site is static HTML/CSS/JS under `docs/`. Its palette follows
+the app's light/dark tokens; don't introduce a separate marketing theme.
+
+```sh
+python3 -m pip install playwright
+python3 -m playwright install chromium
+make test-landing     # responsive layouts, images, copy controls and install commands
+make screenshots      # recapture current app branding with isolated dummy data
+```
+
+Never take documentation screenshots of your actual vault. `make screenshots`
+starts a throwaway UI fixture and refreshes both themes for the README and site.
+
 ## Code map
 
 | Path | Responsibility |

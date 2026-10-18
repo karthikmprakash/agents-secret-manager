@@ -1,8 +1,5 @@
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/brand/logo-reversed.svg">
-    <img src="docs/assets/brand/logo-primary.svg" alt="sm" width="180">
-  </picture>
+  <img src="docs/assets/brand/icon-light-512.png" alt="sm monogram on a white tile" width="112" height="112">
 </p>
 
 # sm
@@ -15,12 +12,15 @@ without ever returning the values to the model. Agents get `secret_list` and
 
 [![CI](https://github.com/karthikmprakash/agents-secret-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/karthikmprakash/agents-secret-manager/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/karthikmprakash/agents-secret-manager?display_name=tag)](https://github.com/karthikmprakash/agents-secret-manager/releases/latest)
-[![Website](https://img.shields.io/badge/website-landing%20page-047857)](https://karthikmprakash.github.io/agents-secret-manager/)
+[![Website](https://img.shields.io/badge/website-landing%20page-3f5bd9)](https://karthikmprakash.github.io/agents-secret-manager/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Go 1.27+](https://img.shields.io/badge/go-1.27%2B-00ADD8.svg)](go.mod)
 [![macOS 13+](https://img.shields.io/badge/platform-macOS%2013%2B-lightgrey.svg)](#install)
 
-![sm secrets UI](docs/assets/sm-secrets.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/sm-secrets-dark.png">
+  <img src="docs/assets/sm-secrets.png" alt="Current sm app with the new logo, grouped demo secrets and plain config" width="1280" height="800">
+</picture>
 
 > **Status: 0.x, macOS-first.** Strong enough for daily use on your own machine;
 > not a hardened sandbox, notarized app or team secrets platform. Read
