@@ -128,28 +128,15 @@ code {
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
   color: var(--text);
-  font-weight: 650;
-  letter-spacing: -0.01em;
 }
 .brand:hover { text-decoration: none; }
 
-.brand-mark {
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  background: var(--text);
-  color: var(--bg);
-  display: grid;
-  place-items: center;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: -0.04em;
-}
+.brand-logo { height: 40px; width: auto; display: block; }
 
-.brand-name { font-size: 15px; }
+@media (prefers-color-scheme: dark) {
+  .brand-logo { filter: invert(1); }
+}
 
 .nav-links {
   display: flex;

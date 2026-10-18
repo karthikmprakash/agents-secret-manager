@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/brand/logo-reversed.svg">
+    <img src="docs/assets/brand/logo-primary.svg" alt="sm" width="180">
+  </picture>
+</p>
+
 # sm
 
 **One local vault. Every coding harness. No secret values in model context.**

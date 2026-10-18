@@ -11,6 +11,8 @@ the `0.x` series.
 
 - A self-contained GitHub Pages landing page with the product screenshot,
   Archify architecture diagram, install steps and security boundaries.
+- The SM monogram brand pack across the Mac app icon, local UI, README and
+  landing page, including favicons, web manifest and a social card.
 
 ## [0.4.0] - 2026-10-17
 
