@@ -205,7 +205,9 @@ Two desktop shells open the same loopback UI:
   pkg-config shim).
 
 Both apps start locked. On macOS, Touch ID unlocks when available; otherwise
-the app asks for the desktop passphrase. On Linux, the passphrase unlocks, and
+the app asks for the desktop passphrase. macOS quarantines unsigned downloads:
+if the CLI is blocked, run `xattr -d com.apple.quarantine ~/.local/bin/sm`,
+and for the app use right-click **Open** once or remove the same attribute. On Linux, the passphrase unlocks, and
 a **Use fingerprint** button appears when `fprintd-verify` is installed.
 
 ```sh

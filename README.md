@@ -93,6 +93,10 @@ The 0.x line moves quickly; build from source for the latest. There is no
 Homebrew formula or signed installer yet. Moving the binary later requires
 re-running `sm setup`, because harness configs store its absolute path.
 
+macOS may quarantine an unsigned download. If the CLI is blocked, run
+`xattr -d com.apple.quarantine ~/.local/bin/sm`; for the app, right-click
+**Open** once or remove the quarantine attribute.
+
 ## Quick start
 
 ```sh
