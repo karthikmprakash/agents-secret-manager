@@ -56,6 +56,8 @@ func main() {
 		err = cmdStatus(args)
 	case "agents":
 		err = cmdAgents(args)
+	case "lock":
+		err = cmdLock(args)
 	case "init":
 		err = cmdInit(args)
 	case "add":

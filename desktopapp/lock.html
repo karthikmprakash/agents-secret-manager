@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Unlock sm</title>
+<style>
+  :root {
+    color-scheme: dark light;
+    --bg: #0b0d11; --surface: #12151b; --line: #232936;
+    --text: #e8ebf1; --muted: #a3abb9; --accent: #9db7ff;
+    --ink: #eef1f6; --ink-text: #0b0d11; --err: #ef8b8b;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg: #f6f7f9; --surface: #ffffff; --line: #e2e5ec; --text: #15181e; --muted: #5a6270; --accent: #3f5bd9; --ink: #15181e; --ink-text: #ffffff; --err: #b3261e; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100dvh; display: grid; place-items: center; background: var(--bg); color: var(--text);
+         font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
+  main { width: min(380px, calc(100% - 40px)); background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 28px; }
+  .logo { width: 52px; height: 52px; margin-bottom: 20px; }
+  .logo svg { width: 52px; height: 52px; border-radius: 12px; }
+  h1 { font-size: 20px; letter-spacing: -.02em; margin: 0; }
+  p { color: var(--muted); margin: 8px 0 0; }
+  form { margin-top: 22px; display: grid; gap: 12px; }
+  label { display: grid; gap: 6px; font-size: 12px; color: var(--muted); }
+  input { width: 100%; min-height: 42px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px;
+          background: var(--bg); color: var(--text); font: inherit; }
+  button { min-height: 44px; border: 1px solid var(--ink); border-radius: 8px; background: var(--ink); color: var(--ink-text);
+           font: inherit; font-weight: 500; cursor: pointer; }
+  button.secondary { background: transparent; color: var(--text); border-color: var(--line); }
+  button:active { transform: scale(.99); }
+  #error { min-height: 20px; color: var(--err); font-size: 12px; }
+  .hint { font-size: 11px; color: var(--muted); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <div class="logo">{{ICON}}</div>
+  <h1 id="title">Unlock sm</h1>
+  <p id="subtitle">Enter your desktop passphrase.</p>
+  <form id="form">
+    <label id="passLabel">Passphrase
+      <input id="passphrase" type="password" autocomplete="current-password" autofocus>
+    </label>
+    <label id="confirmLabel" hidden>Confirm passphrase
+      <input id="confirm" type="password" autocomplete="new-password">
+    </label>
+    <div id="error" role="alert"></div>
+    <button type="submit" id="submit">Unlock</button>
+    <button type="button" class="secondary" id="fingerprint" hidden>Use fingerprint</button>
+  </form>
+  <p class="hint">This locks the desktop app only. CLI and MCP stay available.</p>
+</main>
+<script>
+  let setup = false;
+  async function init() {
+    const state = await window.lockState();
+    setup = !state.configured;
+    if (setup) {
+      document.getElementById("title").textContent = "Create a desktop passphrase";
+      document.getElementById("subtitle").textContent = "It protects this app. Fingerprint can unlock it later if available.";
+      document.getElementById("confirmLabel").hidden = false;
+      document.getElementById("submit").textContent = "Create";
+    }
+    document.getElementById("fingerprint").hidden = !state.fingerprint;
+  }
+  document.getElementById("form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const error = document.getElementById("error");
+    error.textContent = "";
+    const passphrase = document.getElementById("passphrase").value;
+    const message = setup
+      ? await window.setup(passphrase, document.getElementById("confirm").value)
+      : await window.unlock(passphrase);
+    if (message) error.textContent = message;
+  });
+  document.getElementById("fingerprint").addEventListener("click", async () => {
+    const error = document.getElementById("error");
+    error.textContent = "";
+    const message = await window.fingerprint();
+    if (message) error.textContent = message;
+  });
+  init();
+</script>
+</body>
+</html>

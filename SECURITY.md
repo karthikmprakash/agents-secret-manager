@@ -53,6 +53,8 @@ The full boundaries are in the [README](README.md#security-boundaries). In short
 - Bypassing the "refuse plaintext shadow" rule unintentionally.
 - Manifest writes that corrupt unrelated entries or leave broken files.
 - Redaction bypasses for *exact registered values* in captured output.
+- Desktop app lock bypasses that show the UI without Touch ID or the
+  passphrase, or a verifier that accepts a wrong passphrase.
 
 **Known limitations, not vulnerabilities**
 
@@ -63,6 +65,9 @@ The full boundaries are in the [README](README.md#security-boundaries). In short
 - `--only` and `service` are cooperative selection, not authorization; the same
   OS user can read the vault through `sm` regardless.
 - `scope`, `hosts` and `default_ttl` are advisory metadata today.
+- The desktop app lock gates the UI only. CLI and MCP are not gated by it, and
+  a same-user process can read `~/.config/sm/desktop.lock` and attempt an
+  offline brute force of the Argon2id verifier. It is not a vault boundary.
 - The audit hash chain detects interior damage but cannot stop same-user
   rewriting or truncation.
 - `sm doctor` is a bounded scanner for registered values, not a proof that a

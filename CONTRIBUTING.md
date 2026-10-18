@@ -79,7 +79,10 @@ starts a throwaway UI fixture and refreshes both themes for the README and site.
 | `internal/recovery/` | Local passphrase-encrypted archives and empty-vault restore |
 | `internal/scan/` | `sm doctor` scanner (registered values only) |
 | `internal/uiserver/` | Loopback HTTP server, API and embedded UI |
-| `macapp/`, `scripts/` | WKWebView shell and build script |
+| `macapp/` | Swift WKWebView shell with the app lock (Touch ID / passphrase) |
+| `desktopapp/` | GTK + WebKitGTK shell for Linux (separate Go module) |
+| `internal/applock/` | Argon2id verifier for the desktop app passphrase |
+| `scripts/` | Build, screenshot and browser-test scripts |
 
 More detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 

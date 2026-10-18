@@ -21,7 +21,7 @@ var commandOrder = []string{
 	"setup", "config", "mcp",
 	"init", "doctor", "log",
 	"backup", "restore",
-	"ui",
+	"ui", "lock",
 	"help", "completion", "version",
 }
 
@@ -35,7 +35,7 @@ var helpGroups = []struct {
 	{"agent wiring", []string{"setup", "config", "mcp"}},
 	{"project & health", []string{"init", "doctor", "log"}},
 	{"recovery", []string{"backup", "restore"}},
-	{"local ui", []string{"ui"}},
+	{"local ui", []string{"ui", "lock"}},
 	{"reference", []string{"help", "completion", "version"}},
 }
 
@@ -254,6 +254,21 @@ var commandDocs = map[string]commandDoc{
 		examples: []string{
 			"sm ui",
 			"sm ui --port 8787",
+		},
+	},
+	"lock": {
+		summary: "manage the desktop app passphrase",
+		usage:   "sm lock status|set|verify|clear",
+		options: []string{
+			"--stdin    read one passphrase line from stdin (desktop shells)",
+			"--force    replace an existing passphrase (set)",
+			"--quiet    print nothing, use the exit code (verify)",
+			"--yes      remove without prompting (clear)",
+		},
+		examples: []string{
+			"sm lock set",
+			"sm lock status",
+			"sm lock clear",
 		},
 	},
 	"completion": {

@@ -193,6 +193,40 @@ completion. Substitution is raw: use the correct quoting for the target format.
 Cleanup is best effort, not a guaranteed secure erase on APFS/SSDs or after
 `SIGKILL`.
 
+## Desktop apps and the app lock
+
+Two desktop shells open the same loopback UI:
+
+- **macOS:** `./scripts/build-mac-app.sh` builds `dist/sm.app` (WKWebView,
+  ad-hoc signed).
+- **Linux:** `make desktop-linux` builds `dist/sm-desktop-linux-amd64`
+  (GTK + WebKitGTK). It needs `libgtk-3-dev` and `libwebkit2gtk-4.0-dev`
+  (Ubuntu 22.04) or `libwebkit2gtk-4.1-dev` (24.04+, via the build script's
+  pkg-config shim).
+
+Both apps start locked. On macOS, Touch ID unlocks when available; otherwise
+the app asks for the desktop passphrase. On Linux, the passphrase unlocks, and
+a **Use fingerprint** button appears when `fprintd-verify` is installed.
+
+```sh
+sm lock status          # is an app passphrase set?
+sm lock set             # set or replace one (prompts twice)
+sm lock set --force     # replace a forgotten passphrase
+sm lock clear --yes     # remove it
+```
+
+Manage it from the CLI with `sm lock`; desktop shells use
+`sm lock verify --stdin --quiet`, so the passphrase never appears in argv or
+the environment. macOS locks again on sleep and screen lock, and **sm → Lock
+now** (`⌘L`) locks immediately. The Linux shell locks after 15 minutes without
+input and with **Ctrl+Shift+L**.
+
+**Scope:** this is an app-level lock. It gates the desktop UI only. The vault
+identity still lives in the Keychain or Secret Service, and the CLI and MCP are
+deliberately not gated by it. The verifier is a salted Argon2id hash stored at
+`~/.config/sm/desktop.lock` with mode 0600; a same-user process can read it and
+attempt an offline brute force. See [SECURITY.md](../SECURITY.md).
+
 ## MCP and agent access
 
 The MCP server exposes only:

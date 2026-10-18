@@ -52,6 +52,7 @@ var completionFlagWords = map[string][]string{
 	"backup":     {"--out", "--help"},
 	"restore":    {"--file", "--verify", "--help"},
 	"ui":         {"--port", "--no-open", "--help"},
+	"lock":       {"status", "set", "verify", "clear", "--stdin", "--force", "--quiet", "--yes", "--help"},
 	"completion": {"bash", "zsh", "fish", "--help"},
 	"version":    {"--help"},
 	"help":       commandOrder,

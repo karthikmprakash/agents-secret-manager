@@ -45,8 +45,9 @@ cloud sync, no telemetry, no model calls.
   Captured output is redacted; the model only sees names and results.
 - **Works with your agents.** Automatic wiring for nine harnesses, plus
   copy-paste snippets for anything else.
-- **Mac-first, but local.** A CLI, a loopback-only UI, and a native WKWebView
-  shell.
+- **Desktop apps, locked.** A native macOS shell with passphrase + Touch ID,
+  and a GTK/WebKitGTK shell for Linux with passphrase and optional fingerprint.
+  The app lock gates the UI; CLI and MCP stay available.
 - **Honest boundaries.** Children receive plaintext; this is not a sandbox or a
   prompt-injection defense.
 
@@ -77,6 +78,10 @@ sm ui             # local UI (loopback, random per-run token)
 
 `sm onboard --yes` is non-interactive. `sm setup --dry-run` previews changes
 without writing; `sm setup --agent claude` wires one harness.
+
+Desktop builds: `./scripts/build-mac-app.sh` for the macOS app (passphrase +
+Touch ID) and `make desktop-linux` for the GTK/WebKitGTK app (passphrase and
+optional fingerprint). Set the app passphrase with `sm lock set`.
 
 Prebuilt binaries for tagged releases are on
 [GitHub Releases](https://github.com/karthikmprakash/agents-secret-manager/releases).

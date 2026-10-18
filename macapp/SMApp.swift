@@ -2,8 +2,14 @@
 //
 // The app starts the bundled `sm ui --no-open` binary, reads the loopback URL
 // (with its session token) from stdout, and shows it in a WKWebView. The child
-// process is terminated when the app quits.
+// process is terminated when the app quits or locks.
+//
+// Before the UI is shown, an app-level lock is required: Touch ID on supported
+// Macs, or the desktop passphrase managed by `sm lock`. This gates the desktop
+// app only; the vault identity still lives in the Keychain and the CLI/MCP are
+// intentionally not gated by it.
 import Cocoa
+import LocalAuthentication
 import WebKit
 
 @MainActor
@@ -13,6 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
   private var server: Process?
   private var buffer = ""
   private var serviceURL: URL?
+  private var unlocked = false
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     let rect = NSRect(x: 0, y: 0, width: 1040, height: 720)
@@ -33,15 +40,196 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     window.makeKeyAndOrderFront(nil)
     NSApp.activate(ignoringOtherApps: true)
 
+    let workspace = NSWorkspace.shared.notificationCenter
+    workspace.addObserver(self, selector: #selector(systemWillSleep), name: NSWorkspace.willSleepNotification, object: nil)
+    DistributedNotificationCenter.default().addObserver(
+      self, selector: #selector(screenLocked), name: NSNotification.Name("com.apple.screenIsLocked"), object: nil)
+
+    requireUnlock()
+  }
+
+  // MARK: - App lock
+
+  @objc func lockNow() {
+    requireUnlock()
+  }
+
+  @objc private func systemWillSleep() {
+    requireUnlock()
+  }
+
+  @objc private func screenLocked() {
+    requireUnlock()
+  }
+
+  private func requireUnlock() {
+    stopServer()
+    unlocked = false
+    webView.loadHTMLString(blankPage, baseURL: nil)
+    if !lockConfigured() {
+      promptSetup()
+      return
+    }
+    tryBiometrics(fallbackToPassphrase: true)
+  }
+
+  private func lockConfigured() -> Bool {
+    runSM(["lock", "status", "--quiet"], stdin: nil).status == 0
+  }
+
+  private func verifyPassphrase(_ passphrase: String) -> Bool {
+    runSM(["lock", "verify", "--stdin", "--quiet"], stdin: passphrase + "\n").status == 0
+  }
+
+  private func setPassphrase(_ passphrase: String) -> Bool {
+    runSM(["lock", "set", "--stdin"], stdin: passphrase + "\n").status == 0
+  }
+
+  private func biometricsAvailable() -> Bool {
+    let context = LAContext()
+    var error: NSError?
+    return context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error)
+  }
+
+  private func tryBiometrics(fallbackToPassphrase: Bool) {
+    guard biometricsAvailable() else {
+      if fallbackToPassphrase { promptPassphrase() }
+      return
+    }
+    let context = LAContext()
+    context.evaluatePolicy(
+      .deviceOwnerAuthenticationWithBiometrics,
+      localizedReason: "Unlock sm"
+    ) { [weak self] success, _ in
+      DispatchQueue.main.async {
+        guard let self else { return }
+        if success {
+          self.unlock()
+        } else if fallbackToPassphrase {
+          self.promptPassphrase()
+        }
+      }
+    }
+  }
+
+  private func promptPassphrase() {
+    while true {
+      let alert = NSAlert()
+      alert.messageText = "Unlock sm"
+      alert.informativeText = "Enter your desktop passphrase."
+      let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
+      field.placeholderString = "Passphrase"
+      alert.accessoryView = field
+      alert.addButton(withTitle: "Unlock")
+      let touchID = biometricsAvailable()
+      if touchID { alert.addButton(withTitle: "Use Touch ID") }
+      alert.addButton(withTitle: "Quit")
+
+      switch alert.runModal() {
+      case .alertFirstButtonReturn:
+        if verifyPassphrase(field.stringValue) {
+          unlock()
+          return
+        }
+        showErrorAlert("Incorrect passphrase. Try again.")
+      case .alertSecondButtonReturn where touchID:
+        tryBiometrics(fallbackToPassphrase: true)
+        return
+      default:
+        NSApp.terminate(nil)
+        return
+      }
+    }
+  }
+
+  private func promptSetup() {
+    while true {
+      let alert = NSAlert()
+      alert.messageText = "Create a desktop passphrase"
+      alert.informativeText =
+        "It protects this app. Touch ID can unlock it later on supported Macs. "
+        + "The vault identity stays in the Keychain, so CLI and MCP are unchanged."
+      let stack = NSStackView()
+      stack.orientation = .vertical
+      stack.spacing = 8
+      let passphrase = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 24))
+      passphrase.placeholderString = "Passphrase (8+ characters)"
+      let confirm = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 24))
+      confirm.placeholderString = "Confirm passphrase"
+      stack.addArrangedSubview(passphrase)
+      stack.addArrangedSubview(confirm)
+      stack.frame = NSRect(x: 0, y: 0, width: 280, height: 56)
+      alert.accessoryView = stack
+      alert.addButton(withTitle: "Create")
+      alert.addButton(withTitle: "Quit")
+
+      guard alert.runModal() == .alertFirstButtonReturn else {
+        NSApp.terminate(nil)
+        return
+      }
+      if passphrase.stringValue.count < 8 {
+        showErrorAlert("Use at least 8 characters.")
+        continue
+      }
+      if passphrase.stringValue != confirm.stringValue {
+        showErrorAlert("Passphrases do not match.")
+        continue
+      }
+      if setPassphrase(passphrase.stringValue) {
+        unlock()
+        return
+      }
+      showErrorAlert("Could not save the desktop passphrase.")
+    }
+  }
+
+  private func unlock() {
+    unlocked = true
+    window.contentView = webView
     startServer()
   }
 
-  private func startServer() {
-    let macos = Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS")
-    let sm = macos.appendingPathComponent("sm").path
+  // MARK: - Local service
 
+  private func smPath() -> String {
+    let macos = Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS")
+    return macos.appendingPathComponent("sm").path
+  }
+
+  /// runSM runs the bundled CLI with an optional passphrase on stdin. The
+  /// passphrase never appears in argv or the environment.
+  private func runSM(_ arguments: [String], stdin: String?) -> (status: Int32, output: String) {
     let process = Process()
-    process.executableURL = URL(fileURLWithPath: sm)
+    process.executableURL = URL(fileURLWithPath: smPath())
+    process.arguments = arguments
+    process.currentDirectoryURL = FileManager.default.homeDirectoryForCurrentUser
+    let output = Pipe()
+    let input = Pipe()
+    process.standardOutput = output
+    process.standardError = FileHandle.nullDevice
+    if stdin != nil {
+      process.standardInput = input
+    }
+    do {
+      try process.run()
+    } catch {
+      return (127, "")
+    }
+    if let stdin {
+      input.fileHandleForWriting.write(Data(stdin.utf8))
+      input.fileHandleForWriting.closeFile()
+    }
+    let data = output.fileHandleForReading.readDataToEndOfFile()
+    process.waitUntilExit()
+    return (process.terminationStatus, String(data: data, encoding: .utf8) ?? "")
+  }
+
+  private func startServer() {
+    guard server == nil else { return }
+    serviceURL = nil
+    buffer = ""
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: smPath())
     process.arguments = ["ui", "--no-open"]
     process.currentDirectoryURL = FileManager.default.homeDirectoryForCurrentUser
 
@@ -68,8 +256,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     }
   }
 
+  private func stopServer() {
+    server?.terminate()
+    server = nil
+    serviceURL = nil
+    buffer = ""
+  }
+
   private func handleOutput(_ text: String) {
-    guard serviceURL == nil else { return }
+    guard unlocked, serviceURL == nil else { return }
     buffer += text
     if buffer.count > 4096 {
       buffer = ""
@@ -87,6 +282,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     webView.load(URLRequest(url: url))
   }
 
+  private let blankPage = """
+    <html><body style="margin:0;background:#0b0d11"></body></html>
+    """
+
+  // MARK: - Web view delegates
+
   func webView(
     _ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
     decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
@@ -100,7 +301,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
       decisionHandler(.download)
       return
     }
-    guard let url = navigationAction.request.url, let local = serviceURL,
+    guard unlocked, let url = navigationAction.request.url, let local = serviceURL,
       url.scheme == local.scheme, url.host == local.host, url.port == local.port
     else {
       decisionHandler(.cancel)
@@ -139,7 +340,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     }
   }
 
+  // MARK: - Errors
+
   private func showError(_ text: String) {
+    if !unlocked {
+      showErrorAlert(text)
+      return
+    }
     webView.navigationDelegate = nil
     let escaped =
       text
@@ -153,12 +360,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     webView.loadHTMLString(html, baseURL: nil)
   }
 
+  private func showErrorAlert(_ text: String) {
+    let alert = NSAlert()
+    alert.alertStyle = .warning
+    alert.messageText = "sm"
+    alert.informativeText = text
+    alert.addButton(withTitle: "OK")
+    alert.runModal()
+  }
+
   func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
     true
   }
 
   func applicationWillTerminate(_ notification: Notification) {
-    server?.terminate()
+    stopServer()
   }
 }
 
@@ -166,6 +382,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
 func runApplication() {
   let app = NSApplication.shared
   app.setActivationPolicy(.regular)
+
+  let delegate = AppDelegate()
+  app.delegate = delegate
 
   let mainMenu = NSMenu()
 
@@ -176,6 +395,11 @@ func runApplication() {
     withTitle: "About sm",
     action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
     keyEquivalent: "")
+  appMenu.addItem(.separator())
+  let lockItem = NSMenuItem(
+    title: "Lock now", action: #selector(AppDelegate.lockNow), keyEquivalent: "l")
+  lockItem.target = delegate
+  appMenu.addItem(lockItem)
   appMenu.addItem(.separator())
   appMenu.addItem(
     withTitle: "Quit sm",
@@ -197,9 +421,6 @@ func runApplication() {
   editItem.submenu = editMenu
 
   app.mainMenu = mainMenu
-
-  let delegate = AppDelegate()
-  app.delegate = delegate
   withExtendedLifetime(delegate) { app.run() }
 }
 

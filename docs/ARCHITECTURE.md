@@ -30,6 +30,18 @@
 | Web UI | `internal/uiserver` | loopback only, capability token + HttpOnly cookie, strict CSP, embedded HTML |
 | Mac app | `macapp/` | WKWebView shell around `sm ui`; ad-hoc signed dev build |
 
+## Desktop shells
+
+`macapp/SMApp.swift` (WKWebView) and `desktopapp/` (Go + GTK/WebKitGTK) both
+start `sm ui --no-open` and show the same loopback UI. Both begin locked and
+verify an app passphrase through `sm lock verify --stdin --quiet`; macOS also
+uses LocalAuthentication for Touch ID, and the Linux shell can call
+`fprintd-verify` when installed. The verifier lives in
+`internal/applock` (`~/.config/sm/desktop.lock`, Argon2id, mode 0600).
+
+This is an app-level gate. It does not wrap the vault identity, so CLI and MCP
+are intentionally unaffected.
+
 ## Mutations
 
 All writes go through shared, validated services so CLI and UI behave the same:

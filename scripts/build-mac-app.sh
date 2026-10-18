@@ -21,6 +21,7 @@ GOOS=darwin GOARCH="$GOARCH" go build -o "$APP/Contents/MacOS/sm" ./cmd/sm
 xcrun swiftc -O \
   -target "$ARCH-apple-macosx13.0" \
   -framework Cocoa \
+  -framework LocalAuthentication \
   -framework WebKit \
   macapp/SMApp.swift \
   -o "$APP/Contents/MacOS/sm-app"

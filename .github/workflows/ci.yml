@@ -34,6 +34,27 @@ jobs:
       - name: test (race)
         run: go test -race ./...
 
+  linuxapp:
+    name: Build Linux desktop app
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install GTK and WebKitGTK
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev
+      - name: Build
+        run: ./scripts/build-linux-app.sh
+      - name: Verify
+        run: |
+          test -x dist/sm-linux-amd64
+          test -x dist/sm-desktop-linux-amd64
+          (cd desktopapp && go vet ./...)
+
   macapp:
     name: Build macOS app
     runs-on: macos-latest

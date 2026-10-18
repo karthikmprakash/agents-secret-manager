@@ -9,6 +9,13 @@ the `0.x` series.
 
 ### Added
 
+- Desktop app lock: a passphrase plus Touch ID on macOS and a passphrase plus
+  optional `fprintd` fingerprint on Linux. `sm lock` manages the Argon2id
+  verifier; macOS locks on launch, sleep and screen lock, and the Linux shell
+  locks after 15 minutes idle or with Ctrl+Shift+L.
+- A GTK + WebKitGTK desktop shell for Linux (`make desktop-linux`), sharing the
+  loopback UI with the macOS WKWebView app. Release builds now include a macOS
+  app zip and Linux CLI/desktop binaries.
 - A self-contained GitHub Pages landing page with the product screenshot,
   Archify architecture diagram, install steps and security boundaries.
 - The SM monogram brand pack across the Mac app icon, local UI, README and
