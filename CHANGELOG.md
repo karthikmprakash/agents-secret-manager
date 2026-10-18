@@ -7,6 +7,10 @@ the `0.x` series.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-18
+
+Desktop apps with an app lock, and a GTK/WebKitGTK shell for Linux.
+
 ### Added
 
 - Desktop app lock: a passphrase plus Touch ID on macOS and a passphrase plus
