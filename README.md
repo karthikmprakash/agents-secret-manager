@@ -62,7 +62,8 @@ brew install --cask sm
 
 This installs `sm.app` and the `sm` CLI. The app asks for a desktop passphrase
 on first launch and unlocks with Touch ID afterwards. The CLI and MCP are not
-gated by the app lock.
+gated by the app lock. Homebrew clears the quarantine attribute for this
+unsigned build.
 
 ### Direct downloads
 
