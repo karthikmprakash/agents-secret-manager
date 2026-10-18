@@ -22,6 +22,8 @@ the `0.x` series.
   repeatable dummy-data screenshot capture and responsive landing-page tests.
 - Install instructions download both the binary and its checksum, with an
   Apple Silicon/Intel selector and working clipboard fallback.
+- Landing page compatibility strip uses the actual harness logos instead of
+  text wordmarks, with accessible names and local SVGs.
 
 ## [0.4.0] - 2026-10-17
 

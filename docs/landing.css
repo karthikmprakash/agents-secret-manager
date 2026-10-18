@@ -103,7 +103,9 @@ p code { background: var(--surface-2); padding: 2px 4px; border-radius: 4px; ove
 .strip-label { color: var(--faint); font-size: 12px; line-height: 1.8; }
 .strip-label strong { color: var(--text); font-size: 14px; font-weight: 500; }
 .chips { display: flex; flex-wrap: wrap; column-gap: 28px; row-gap: 14px; padding: 0; margin: 0; list-style: none; }
-.chips li { color: var(--muted); font-size: 13px; font-weight: 500; }
+.chips.logos { column-gap: 12px; row-gap: 12px; align-items: center; }
+.chips.logos li { display: block; }
+.chips.logos img { width: 36px; height: 36px; border-radius: 9px; border: 1px solid var(--line-strong); }
 
 /* Runtime path: flat steps beside an accurate tool reference. */
 .workflow-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 72px; align-items: start; }

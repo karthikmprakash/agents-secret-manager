@@ -46,6 +46,9 @@ def test_page(browser, url, scheme, width, height, output):
     page.goto(url, wait_until="networkidle")
     expect(page.locator("h1")).to_be_visible()
     expect(page.locator(".hero-shot img")).to_be_visible()
+    logos = page.locator(".chips.logos img")
+    expect(logos).to_have_count(8)
+    page.wait_for_function("[...document.querySelectorAll('.chips.logos img')].every(e => e.complete && e.naturalWidth > 0)")
     page.wait_for_function("document.querySelector('.hero-shot img').complete")
     assert page.locator(".hero-shot img").evaluate("e => e.currentSrc").endswith(
         "sm-secrets-dark.png" if scheme == "dark" else "sm-secrets.png"
