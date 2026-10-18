@@ -195,10 +195,17 @@ Cleanup is best effort, not a guaranteed secure erase on APFS/SSDs or after
 
 ## Desktop apps and the app lock
 
-Two desktop shells open the same loopback UI:
+Install the macOS app and CLI with Homebrew:
+
+```sh
+brew tap karthikmprakash/tap
+brew install --cask sm
+```
+
+Or build the shells from source:
 
 - **macOS:** `./scripts/build-mac-app.sh` builds `dist/sm.app` (WKWebView,
-  ad-hoc signed).
+  ad-hoc signed; `UNIVERSAL=1` builds Apple Silicon + Intel).
 - **Linux:** `make desktop-linux` builds `dist/sm-desktop-linux-amd64`
   (GTK + WebKitGTK). It needs `libgtk-3-dev` and `libwebkit2gtk-4.0-dev`
   (Ubuntu 22.04) or `libwebkit2gtk-4.1-dev` (24.04+, via the build script's

@@ -53,20 +53,54 @@ cloud sync, no telemetry, no model calls.
 
 ## Install
 
-Requirements: macOS 13+, Go **1.27+**. Xcode command-line tools only for the
-`.app` bundle.
+### macOS app and CLI (Homebrew)
+
+```sh
+brew tap karthikmprakash/tap
+brew install --cask sm
+```
+
+This installs `sm.app` and the `sm` CLI. The app asks for a desktop passphrase
+on first launch and unlocks with Touch ID afterwards. The CLI and MCP are not
+gated by the app lock.
+
+### Direct downloads
+
+```sh
+# macOS app + CLI (universal, macOS 13+)
+curl -LO https://github.com/karthikmprakash/agents-secret-manager/releases/latest/download/sm-macos-app.zip
+unzip -q sm-macos-app.zip -d sm-macos
+open sm-macos/sm.app
+
+# Linux CLI and desktop app (GTK 3 + WebKitGTK 4.0 or 4.1)
+curl -LO https://github.com/karthikmprakash/agents-secret-manager/releases/latest/download/sm-linux-amd64
+curl -LO https://github.com/karthikmprakash/agents-secret-manager/releases/latest/download/sm-desktop-linux-amd64
+curl -LO https://github.com/karthikmprakash/agents-secret-manager/releases/latest/download/SHA256SUMS
+shasum -a 256 -c SHA256SUMS --ignore-missing
+chmod +x sm-linux-amd64 sm-desktop-linux-amd64
+mkdir -p ~/.local/bin
+mv sm-linux-amd64 ~/.local/bin/sm
+./sm-desktop-linux-amd64   # run it beside the sm binary
+```
+
+The macOS downloads are not notarized. If macOS blocks the CLI, run
+`xattr -d com.apple.quarantine ~/.local/bin/sm`; for the app, right-click
+**Open** once or remove the quarantine attribute.
+
+### Build from source
+
+Requirements: macOS 13+ or Linux with GTK/WebKitGTK, Go **1.27+**. Xcode
+command-line tools are only needed for the `.app` bundle.
 
 ```sh
 git clone https://github.com/karthikmprakash/agents-secret-manager
 cd agents-secret-manager
 
-# CLI
 mkdir -p ~/.local/bin
 go build -o ~/.local/bin/sm ./cmd/sm
 
-# Optional Mac app (ad-hoc signed, not notarized)
-./scripts/build-mac-app.sh
-open dist/sm.app
+./scripts/build-mac-app.sh   # macOS app (passphrase + Touch ID)
+make desktop-linux           # Linux GTK + WebKitGTK app
 ```
 
 Then run the one-time setup:
@@ -77,25 +111,12 @@ sm ui             # local UI (loopback, random per-run token)
 ```
 
 `sm onboard --yes` is non-interactive. `sm setup --dry-run` previews changes
-without writing; `sm setup --agent claude` wires one harness.
+without writing; `sm setup --agent claude` wires one harness. Set the desktop
+app passphrase with `sm lock set`; see the
+[desktop guide](docs/GUIDE.md#desktop-apps-and-the-app-lock).
 
-Desktop builds: `./scripts/build-mac-app.sh` for the macOS app (passphrase +
-Touch ID) and `make desktop-linux` for the GTK/WebKitGTK app (passphrase and
-optional fingerprint). Set the app passphrase with `sm lock set`.
-
-Prebuilt binaries for tagged releases are on
-[GitHub Releases](https://github.com/karthikmprakash/agents-secret-manager/releases).
-Desktop builds ship there too: `sm-macos-app.zip` (passphrase + Touch ID) and
-`sm-desktop-linux-amd64` (GTK + WebKitGTK, passphrase and optional fingerprint).
-See the [desktop guide](docs/GUIDE.md#desktop-apps-and-the-app-lock).
-
-The 0.x line moves quickly; build from source for the latest. There is no
-Homebrew formula or signed installer yet. Moving the binary later requires
-re-running `sm setup`, because harness configs store its absolute path.
-
-macOS may quarantine an unsigned download. If the CLI is blocked, run
-`xattr -d com.apple.quarantine ~/.local/bin/sm`; for the app, right-click
-**Open** once or remove the quarantine attribute.
+Moving the binary later requires re-running `sm setup`, because harness configs
+store its absolute path.
 
 ## Quick start
 

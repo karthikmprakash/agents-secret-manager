@@ -12,19 +12,39 @@ VERSION="${VERSION:-$(git describe --tags --abbrev=0 2>/dev/null || echo 0.4.1-d
 VERSION="${VERSION#v}"
 
 ARCH="${ARCH:-$(uname -m)}"
-case "$ARCH" in
-  arm64) GOARCH=arm64 ;;
-  x86_64) GOARCH=amd64 ;;
-  *) echo "Unsupported architecture: $ARCH" >&2; exit 1 ;;
-esac
-GOOS=darwin GOARCH="$GOARCH" go build -o "$APP/Contents/MacOS/sm" ./cmd/sm
-xcrun swiftc -O \
-  -target "$ARCH-apple-macosx13.0" \
-  -framework Cocoa \
-  -framework LocalAuthentication \
-  -framework WebKit \
-  macapp/SMApp.swift \
-  -o "$APP/Contents/MacOS/sm-app"
+if [ "${UNIVERSAL:-0}" = "1" ]; then
+  GOARCHES="arm64 amd64"
+  SWIFT_ARCHES="arm64 x86_64"
+else
+  case "$ARCH" in
+    arm64) GOARCHES="arm64"; SWIFT_ARCHES="arm64" ;;
+    x86_64) GOARCHES="amd64"; SWIFT_ARCHES="x86_64" ;;
+    *) echo "Unsupported architecture: $ARCH" >&2; exit 1 ;;
+  esac
+fi
+
+BUILD_TMP="$(mktemp -d)"
+trap 'rm -rf "$BUILD_TMP"' EXIT
+
+go_bins=()
+for goarch in $GOARCHES; do
+  GOOS=darwin GOARCH="$goarch" go build -o "$BUILD_TMP/sm-$goarch" ./cmd/sm
+  go_bins+=("$BUILD_TMP/sm-$goarch")
+done
+lipo -create -output "$APP/Contents/MacOS/sm" "${go_bins[@]}"
+
+swift_bins=()
+for swift_arch in $SWIFT_ARCHES; do
+  xcrun swiftc -O \
+    -target "$swift_arch-apple-macosx13.0" \
+    -framework Cocoa \
+    -framework LocalAuthentication \
+    -framework WebKit \
+    macapp/SMApp.swift \
+    -o "$BUILD_TMP/sm-app-$swift_arch"
+  swift_bins+=("$BUILD_TMP/sm-app-$swift_arch")
+done
+lipo -create -output "$APP/Contents/MacOS/sm-app" "${swift_bins[@]}"
 
 # App icon: generated from the checked-in dark SM monogram.
 ICONSET="$APP/Contents/Resources/AppIcon.iconset"

@@ -7,6 +7,22 @@ the `0.x` series.
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-10-18
+
+Homebrew distribution for the macOS app.
+
+### Added
+
+- `brew tap karthikmprakash/tap && brew install --cask sm` installs the
+  universal macOS app and the `sm` CLI.
+- The macOS app zip is now universal (Apple Silicon + Intel) and contains the
+  CLI, so the cask can install both from one verified download.
+
+### Changed
+
+- README, guide and landing page now lead with Homebrew and direct-download
+  commands for the macOS app, Linux desktop app and CLI.
+
 ## [0.5.0] - 2026-10-18
 
 Desktop apps with an app lock, and a GTK/WebKitGTK shell for Linux.

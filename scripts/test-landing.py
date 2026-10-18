@@ -46,6 +46,7 @@ def test_page(browser, url, scheme, width, height, output):
     page.goto(url, wait_until="networkidle")
     expect(page.locator("h1")).to_be_visible()
     expect(page.locator(".hero-shot img")).to_be_visible()
+    expect(page.locator(".brew-block")).to_contain_text("brew install --cask sm")
     logos = page.locator(".chips.logos img")
     expect(logos).to_have_count(8)
     page.locator(".strip").scroll_into_view_if_needed()

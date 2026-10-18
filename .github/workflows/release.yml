@@ -29,12 +29,17 @@ jobs:
               -o "dist/sm-darwin-$arch" ./cmd/sm
             (cd dist && shasum -a 256 "sm-darwin-$arch" > "sm-darwin-$arch.sha256")
           done
-      - name: Build macOS app bundle
+      - name: Build universal macOS app bundle
         run: |
           set -euo pipefail
-          ./scripts/build-mac-app.sh
-          ditto -c -k --keepParent dist/sm.app dist/sm-macos-app.zip
+          UNIVERSAL=1 ./scripts/build-mac-app.sh
+          lipo -create dist/sm-darwin-arm64 dist/sm-darwin-amd64 -output dist/sm-universal
+          rm -rf dist/macos-zip && mkdir dist/macos-zip
+          cp -R dist/sm.app dist/macos-zip/
+          cp dist/sm-universal dist/macos-zip/sm
+          (cd dist/macos-zip && zip -qry ../sm-macos-app.zip sm.app sm)
           (cd dist && shasum -a 256 sm-macos-app.zip > sm-macos-app.zip.sha256)
+          rm -rf dist/macos-zip
       - uses: actions/upload-artifact@v4
         with:
           name: dist-macos
