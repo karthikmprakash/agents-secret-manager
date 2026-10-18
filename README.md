@@ -19,7 +19,7 @@ without ever returning the values to the model. Agents get `secret_list` and
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/sm-secrets-dark.png">
-  <img src="docs/assets/sm-secrets.png" alt="Current sm app with the new logo, grouped demo secrets and plain config" width="1280" height="800">
+  <img src="docs/assets/sm-secrets.png" alt="Current sm app with the new logo, grouped demo secrets and plain config">
 </picture>
 
 > **Status: 0.x, macOS-first.** Strong enough for daily use on your own machine;
