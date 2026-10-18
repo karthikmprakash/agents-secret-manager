@@ -85,6 +85,10 @@ optional fingerprint). Set the app passphrase with `sm lock set`.
 
 Prebuilt binaries for tagged releases are on
 [GitHub Releases](https://github.com/karthikmprakash/agents-secret-manager/releases).
+Desktop builds ship there too: `sm-macos-app.zip` (passphrase + Touch ID) and
+`sm-desktop-linux-amd64` (GTK + WebKitGTK, passphrase and optional fingerprint).
+See the [desktop guide](docs/GUIDE.md#desktop-apps-and-the-app-lock).
+
 The 0.x line moves quickly; build from source for the latest. There is no
 Homebrew formula or signed installer yet. Moving the binary later requires
 re-running `sm setup`, because harness configs store its absolute path.
@@ -215,6 +219,7 @@ sm env --verbose        # declared entries and references, never values
 sm log --limit 20       # recent audit entries
 sm log verify           # verify the hash chain
 sm doctor               # find plaintext copies of registered values
+sm lock status          # desktop app passphrase / Touch ID state
 sm help add             # usage, options and examples
 eval "$(sm completion zsh)"
 ```

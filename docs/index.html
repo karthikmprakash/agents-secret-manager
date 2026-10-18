@@ -140,6 +140,7 @@
             <article><h3>A group for each service.</h3><p>Keep a base URL beside its API key. Mark plain config separately, and inject a whole group when you need it.</p><div class="example-command"><code>sm exec --service stripe -- ./app</code></div></article>
             <article><h3>References, not duplicated keys.</h3><p>Use global secrets in any folder. Project manifests and .env references point to values without containing them.</p><div class="example-command"><code>GITHUB_TOKEN=sm://GITHUB_TOKEN</code></div></article>
             <article><h3>A backup you own.</h3><p>Save a passphrase-encrypted archive. Verify it locally and restore into an empty vault on another Mac.</p><a class="text-link" href="https://github.com/karthikmprakash/agents-secret-manager/blob/main/docs/GUIDE.md#recovery">Recovery guide <span aria-hidden="true">↗</span></a></article>
+            <article><h3>Locked by default.</h3><p>The desktop apps unlock with a passphrase, Touch ID on macOS, or a fingerprint on Linux. The CLI and MCP stay available.</p><div class="example-command"><code>sm lock set</code></div></article>
           </div>
         </div>
         <details class="architecture-details" id="architecture">
@@ -182,6 +183,7 @@
         <div class="install-copy">
           <h2>Your keys.<br>Your machine.</h2>
           <p>Start with the CLI, then open the local UI. Free, open source and built for individual developers.</p>
+          <p>Desktop apps ship in the same release: <code>sm-macos-app.zip</code> (passphrase + Touch ID) and <code>sm-desktop-linux-amd64</code> (GTK + WebKitGTK, passphrase and optional fingerprint).</p>
           <div class="cta-row">
             <a class="text-link" href="https://github.com/karthikmprakash/agents-secret-manager/releases/latest">Release notes <span aria-hidden="true">↗</span></a>
           </div>
