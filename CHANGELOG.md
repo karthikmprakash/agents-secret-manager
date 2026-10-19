@@ -7,6 +7,10 @@ the `0.x` series.
 
 ## [Unreleased]
 
+## [0.5.3] - 2026-10-19
+
+Cached update checks and eye-button value reveal.
+
 ### Added
 
 - Update checks from GitHub Releases: `sm update` plus an explicit download
