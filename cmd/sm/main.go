@@ -7,7 +7,7 @@ import (
 	"os"
 )
 
-var version = "0.5.2"
+var version = "0.5.3-dev"
 
 func main() {
 	if len(os.Args) < 2 {
