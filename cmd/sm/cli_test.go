@@ -129,6 +129,41 @@ func TestAddAcceptsFlagsAroundName(t *testing.T) {
 	}
 }
 
+func TestEnvShowConfigOnlyPrintsConfig(t *testing.T) {
+	cliFixture(t)
+	if err := secrets.Initialize(); err != nil {
+		t.Fatal(err)
+	}
+	global, _, err := manifest.EnsureGlobal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	no := false
+	if err := secrets.AddBatch(global, []secrets.Input{
+		{Name: "DEMO_URL", Value: "https://demo.example.org", Secret: manifest.Secret{Sensitive: &no}},
+		{Name: "DEMO_TOKEN", Value: "demo-secret-123456"},
+	}, false); err != nil {
+		t.Fatal(err)
+	}
+	out, err := captureOutput(t, func() error { return cmdEnv([]string{"--show-config"}) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "https://demo.example.org") {
+		t.Fatalf("config value missing from --show-config:\n%s", out)
+	}
+	if strings.Contains(out, "demo-secret-123456") {
+		t.Fatalf("sensitive value leaked into --show-config:\n%s", out)
+	}
+	out, err = captureOutput(t, func() error { return cmdEnv(nil) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out, "https://demo.example.org") {
+		t.Fatalf("config value printed without --show-config:\n%s", out)
+	}
+}
+
 func TestEnvVerboseRenders(t *testing.T) {
 	cliFixture(t)
 	if err := secrets.Initialize(); err != nil {

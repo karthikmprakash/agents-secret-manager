@@ -81,7 +81,7 @@ def test_page(browser, url, scheme, width, height, output):
     page.locator(".architecture-details summary").click()
     expect(page.locator(".architecture-details")).to_have_attribute("open", "")
     page.locator(".architecture-details img").scroll_into_view_if_needed()
-    page.wait_for_function("[...document.images].every(e=>e.complete && e.naturalWidth > 0)")
+    page.wait_for_function("() => { const i = document.querySelector('.architecture-details img'); return i && i.complete && i.naturalWidth > 0; }")
     page.locator(".architecture-details summary").click()
     # A denied clipboard permission falls back to selecting the real text.
     page.evaluate("() => { navigator.clipboard.writeText = async () => { throw new Error('denied'); }; }")

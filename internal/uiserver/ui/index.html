@@ -186,6 +186,15 @@
   .secret:last-child { border-bottom: 0; }
   .secret:hover { background: var(--panel-2); }
   .secret-main { min-width: 0; }
+  .secret-value {
+    margin-top: 3px;
+    font: 11.5px/1.4 var(--mono);
+    color: var(--text-3);
+    overflow-wrap: anywhere;
+  }
+  .secret-value.hint { letter-spacing: .08em; }
+  .secret-value.config-value { color: var(--text-2); }
+  .secret-value.revealed { color: var(--accent); }
   .secret-name {
     font: 500 12.5px var(--mono); letter-spacing: -0.01em;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -1114,6 +1123,40 @@
     const item = (label, fn) =>
       el("button", { type: "button", text: label, onclick: () => { menu.open = false; fn(); } });
     menuList.append(item("Copy ref", () => copyRef(secret.name)));
+    if (secret.revealable) {
+      let revealed = false;
+      let revealTimer = null;
+      const valueLine = () => document.getElementById("value-" + secret.name);
+      menuList.append(item("Reveal value", async () => {
+        const line = valueLine();
+        if (!line) return;
+        if (revealed) {
+          line.textContent = secret.preview || "••••";
+          line.classList.remove("revealed");
+          revealed = false;
+          return;
+        }
+        try {
+          const res = await api("/api/reveal", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: secret.name, scope: secret.scope }),
+          });
+          line.textContent = res.value;
+          line.classList.add("revealed");
+          revealed = true;
+          clearTimeout(revealTimer);
+          revealTimer = setTimeout(() => {
+            line.textContent = secret.preview || "••••";
+            line.classList.remove("revealed");
+            revealed = false;
+          }, 20000);
+          toast("Value revealed for 20 seconds.");
+        } catch (err) {
+          toast(err.message);
+        }
+      }));
+    }
     menuList.append(item(secret.service ? "Move to group…" : "Add to group…", () => openSheet("group", secret)));
     menuList.append(item("Rotate…", () => openSheet("rotate", secret)));
     menu.append(summary, menuList);
@@ -1131,6 +1174,14 @@
       el("span", { class: "dot " + (present ? "ok" : "warn"), title: present ? "present" : "missing" }),
       el("div", { class: "secret-main" }, [
         el("div", { class: "secret-name", text: secret.name, translate: "no" }),
+        secret.preview || secret.status === "missing"
+          ? el("div", {
+              class: "secret-value" + (secret.sensitive === false ? " config-value" : " hint"),
+              id: "value-" + secret.name,
+              text: secret.preview || "not in vault",
+              translate: "no",
+            })
+          : null,
       ]),
       chips,
       menu,
@@ -1203,6 +1254,36 @@
       text: agent.status || "Unknown",
     });
     const btn = el("button", { class: "btn small", type: "button", text: wired ? "Update config" : "Configure" });
+    const removeBtn = el("button", { class: "btn small ghost", type: "button", text: "Remove" });
+    removeBtn.disabled = agent.status === "not configured";
+
+    removeBtn.addEventListener("click", async () => {
+      if (!window.confirm("Remove the sm MCP entry from " + agent.name + "?")) return;
+      removeBtn.disabled = true;
+      removeBtn.textContent = "Removing…";
+      try {
+        const res = await api("/api/setup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ only: agent.name, remove: true }),
+        });
+        const result = (res.results || [])[0];
+        if (!result || result.failed) {
+          toast(result?.status || "Could not remove the configuration. Refresh to retry.");
+          removeBtn.disabled = false;
+        } else {
+          agent.status = "not configured";
+          status.textContent = "Not configured";
+          status.className = "agent-status";
+          btn.textContent = "Configure";
+          toast(agent.name + ": sm entry removed. Restart the agent to apply.");
+        }
+      } catch (err) {
+        toast(err.message);
+        removeBtn.disabled = false;
+      }
+      removeBtn.textContent = "Remove";
+    });
 
     btn.addEventListener("click", async () => {
       btn.disabled = true;
@@ -1222,6 +1303,7 @@
           agent.status = "configured";
           status.textContent = "Configured";
           status.className = "agent-status ok";
+          removeBtn.disabled = false;
           toast(agent.name + ": configuration saved. Reconnect or restart the agent.");
         }
       } catch (err) {
@@ -1241,6 +1323,7 @@
       ]),
       status,
       btn,
+      removeBtn,
     ]);
   }
 

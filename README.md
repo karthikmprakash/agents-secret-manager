@@ -159,6 +159,11 @@ and only its output returns. Children receive plaintext — see
 Omitting `names` and `service` injects every env-deliverable secret. That is
 cooperative least privilege, not authorization. `sm` is not a sandbox.
 
+The MCP surface never returns values. The **local** UI and CLI can: config
+values are visible by default in the UI and with `sm env --show-config`, and a
+sensitive value can be revealed in the UI for 20 seconds or printed with
+`sm get NAME`. Both paths write a `reveal` entry to the audit log.
+
 ### Supported harnesses
 
 | Harness | Wiring |
@@ -198,6 +203,10 @@ sm config --agent codex   # one harness
   leak scan and encrypted recovery.
 - **Local UI:** review imports, manage groups, inspect agents and create recovery
   archives in a loopback-only browser UI or the Mac app.
+- **Values when you need them:** plain config is visible in the UI and with
+  `sm env --show-config`. Reveal a sensitive value in the UI for 20 seconds, or
+  locally with `sm get NAME`. Every reveal is audited; MCP still has no
+  value-returning tool.
 
 ## Import anything
 
@@ -242,6 +251,9 @@ sm                      # dashboard and next steps
 sm status               # same, explicitly
 sm agents               # detected harnesses and wiring state
 sm env --verbose        # declared entries and references, never values
+sm env --show-config    # plain config values; sensitive values stay hidden
+sm get STRIPE_API_KEY   # print one value locally (audited)
+sm setup --remove --agent claude   # unwire a harness
 sm log --limit 20       # recent audit entries
 sm log verify           # verify the hash chain
 sm doctor               # find plaintext copies of registered values

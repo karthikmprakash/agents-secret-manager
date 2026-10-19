@@ -40,9 +40,9 @@ sm ui             # loopback UI; a random token is generated for each run
 --dry-run` previews wiring without writing; `sm setup --agent NAME` wires one
 harness.
 
-The app is ad-hoc signed, not notarized. There is no Homebrew formula yet.
-Harness configs store the absolute path to `sm`, so moving the binary requires
-re-running `sm setup`.
+The macOS app is installed with `brew install --cask sm` or built from source;
+it is ad-hoc signed, not notarized. Harness configs store the absolute path to
+`sm`, so moving the binary requires re-running `sm setup`.
 
 ## Commands
 
@@ -57,9 +57,12 @@ sm agents                   detected harnesses and wiring state
 sm add NAME [flags]         store and declare a secret
 sm import [flags]           migrate plaintext values, leave sm:// refs
 sm env [--verbose]          declared entries, groups and presence
+sm env --show-config        print plain config values
+sm get NAME                 print one value locally (audited)
 sm exec [flags] -- CMD      run with selected secrets injected
 
 sm setup [--agent NAME]     wire detected harnesses
+sm setup --remove --agent NAME   unwire one harness (or --all)
 sm config [--agent NAME]    print manual MCP snippets
 
 sm init                     project manifest in the current directory
@@ -252,6 +255,30 @@ are not detected.
 Use `names: ["STRIPE_SECRET_KEY"]` or `service: "stripe"` to select values.
 Omitting both injects every env-deliverable secret. This is cooperative least
 privilege, not authorization.
+
+### Seeing values locally
+
+The MCP surface never returns values. The local UI and CLI can, by explicit
+action:
+
+- Plain config (`sensitive = false`) is shown in the UI and with
+  `sm env --show-config`.
+- Sensitive entries show a last-four hint in the UI. **Reveal value** shows the
+  full value for 20 seconds.
+- `sm get NAME` prints one value to the terminal.
+- Every reveal appends a `reveal` entry to the audit log. Treat terminal
+  scrollback, clipboard history and screenshots as copies you own.
+
+### De-configure a harness
+
+```sh
+sm setup --remove --agent claude   # one harness
+sm setup --remove --all            # every detected harness
+```
+
+The UI's **Agents** view has a **Remove** action on each row. Removal deletes
+only the `sm` MCP entry, keeps the rest of the harness configuration, and
+writes a `.sm-backup` next to files sm edited.
 
 ## Recovery
 

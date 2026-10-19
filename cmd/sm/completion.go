@@ -38,13 +38,14 @@ var completionFlagWords = map[string][]string{
 	"init":       {"--help"},
 	"add":        {"--global", "--service", "--group", "--config", "--sensitive", "--generate", "--transport", "--scope", "--ref", "--help"},
 	"import":     {"--file", "--global", "--group", "--service", "--config", "--all", "--dry-run", "--help"},
-	"env":        {"--verbose", "--help"},
+	"env":        {"--verbose", "--show-config", "--help"},
+	"get":        {"--scope", "--help"},
 	"exec":       {"--only", "--profile", "--redact", "--verbose", "--help"},
 	"inject":     {"--tpl", "--out", "--verbose", "--help"},
 	"rotate":     {"--generate", "--help"},
 	"group":      {"--service", "--ungroup", "--help"},
 	"service":    {"--rename", "--ungroup", "--scope", "--help"},
-	"setup":      {"--dry-run", "--agent", "--help"},
+	"setup":      {"--dry-run", "--agent", "--remove", "--all", "--help"},
 	"config":     {"--agent", "--help"},
 	"mcp":        {"--help"},
 	"doctor":     {"--no-history", "--depth", "--help"},
@@ -77,6 +78,7 @@ _sm_complete() {
         group) COMPREPLY=( $(compgen -W "` + completionWords("group") + `" -- "${cur}") ) ;;
         service) COMPREPLY=( $(compgen -W "` + completionWords("service") + `" -- "${cur}") ) ;;
         env) COMPREPLY=( $(compgen -W "` + completionWords("env") + `" -- "${cur}") ) ;;
+        get) COMPREPLY=( $(compgen -W "` + completionWords("get") + `" -- "${cur}") ) ;;
         rotate) COMPREPLY=( $(compgen -W "` + completionWords("rotate") + `" -- "${cur}") ) ;;
         doctor) COMPREPLY=( $(compgen -W "` + completionWords("doctor") + `" -- "${cur}") ) ;;
         setup) COMPREPLY=( $(compgen -W "` + completionWords("setup") + `" -- "${cur}") ) ;;
@@ -169,7 +171,10 @@ _sm() {
             _arguments '--yes[non-interactive setup]' '--help[show help]'
             ;;
         env)
-            _arguments '--verbose[show vault references]' '--help[show help]'
+            _arguments '--verbose[show vault references]' '--show-config[show plain config values]' '--help[show help]'
+            ;;
+        get)
+            _arguments '--scope[global or project]:scope:(global project)' '1:secret name:' '--help[show help]'
             ;;
         rotate)
             _arguments '--generate[generate the new value]:spec:' '--help[show help]'
@@ -261,6 +266,8 @@ complete -c sm -n '__fish_seen_subcommand_from service' -l rename -r -d 'New gro
 complete -c sm -n '__fish_seen_subcommand_from service' -l ungroup -d 'Remove the group'
 complete -c sm -n '__fish_seen_subcommand_from service' -l scope -r -d 'global or project'
 complete -c sm -n '__fish_seen_subcommand_from env' -l verbose -d 'Show vault references'
+complete -c sm -n '__fish_seen_subcommand_from env' -l show-config -d 'Show plain config values'
+complete -c sm -n '__fish_seen_subcommand_from get' -l scope -r -d 'global or project'
 complete -c sm -n '__fish_seen_subcommand_from rotate' -l generate -r -d 'Generate the new value'
 complete -c sm -n '__fish_seen_subcommand_from doctor' -l no-history -d 'Skip git history'
 complete -c sm -n '__fish_seen_subcommand_from doctor' -l depth -r -d 'Commit depth'

@@ -7,6 +7,22 @@ the `0.x` series.
 
 ## [Unreleased]
 
+### Added
+
+- Local value visibility: plain config is shown in the UI and with
+  `sm env --show-config`; sensitive entries show a last-four hint and can be
+  revealed in the UI for 20 seconds. `sm get NAME` prints one value locally.
+  Reveals are audited; MCP still has no value-returning tool.
+- Harness removal: `sm setup --remove --agent NAME` (or `--all`) and a
+  **Remove** action in the UI Agents view delete only the sm MCP entry, with
+  backups and unrelated config preserved.
+
+### Fixed
+
+- OpenCode wiring no longer depends on an `opencode` binary being on the GUI
+  PATH or on a version-specific CLI syntax. It now edits the JSON/JSONC config
+  directly when the CLI is unavailable or fails, and status parses JSONC.
+
 ## [0.5.1] - 2026-10-18
 
 Homebrew distribution for the macOS app.

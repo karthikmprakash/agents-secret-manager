@@ -30,8 +30,9 @@ func MergeJSONMCPServers(path string, entry map[string]any) error {
 	switch {
 	case err == nil:
 		if len(data) > 0 {
-			if err := json.Unmarshal(data, &root); err != nil {
-				return fmt.Errorf("%s: not plain JSON (%w) — edit it manually", path, err)
+			root, err = ParseJSONLoose(data)
+			if err != nil {
+				return fmt.Errorf("%s: not valid JSON or JSONC (%w)", path, err)
 			}
 		}
 	case os.IsNotExist(err):

@@ -246,7 +246,8 @@ func cmdAgents(args []string) error {
 	fmt.Println()
 	if configured < len(targets) {
 		nextBlock(markWarn()+" "+fmt.Sprintf("%d of %d %s not wired", len(targets)-configured, len(targets), pluralWord(len(targets), "harness is", "harnesses are"))+" — "+cyan("sm setup"),
-			dim("one at a time: ")+cyan("sm setup --agent NAME"))
+			dim("one at a time: ")+cyan("sm setup --agent NAME"),
+			dim("remove an entry: ")+cyan("sm setup --remove --agent NAME"))
 	} else {
 		fmt.Println("  " + markOK() + dim(" all detected harnesses are wired · restart apps after config changes"))
 	}

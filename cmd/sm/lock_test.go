@@ -5,6 +5,11 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/karthikmprakash/agents-secret-manager/internal/audit"
+	"github.com/karthikmprakash/agents-secret-manager/internal/config"
+	"github.com/karthikmprakash/agents-secret-manager/internal/manifest"
+	"github.com/karthikmprakash/agents-secret-manager/internal/secrets"
 )
 
 func withStdin(t *testing.T, input string, fn func() error) error {
@@ -27,6 +32,44 @@ func withStdin(t *testing.T, input string, fn func() error) error {
 		t.Fatal(err)
 	}
 	return callErr
+}
+
+func TestGetPrintsValueAndAudits(t *testing.T) {
+	cliFixture(t)
+	if err := secrets.Initialize(); err != nil {
+		t.Fatal(err)
+	}
+	global, _, err := manifest.EnsureGlobal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := secrets.AddBatch(global, []secrets.Input{{Name: "TOKEN", Value: "known-value-123"}}, false); err != nil {
+		t.Fatal(err)
+	}
+	out, err := captureOutput(t, func() error { return cmdGet([]string{"TOKEN"}) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "known-value-123\n" {
+		t.Fatalf("sm get printed %q", out)
+	}
+	dir, _ := config.Dir()
+	entries, err := audit.Read(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, entry := range entries {
+		if entry.Action == "reveal" && len(entry.Secrets) == 1 && entry.Secrets[0] == "TOKEN" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("sm get did not record a reveal entry")
+	}
+	if err := cmdGet([]string{"MISSING"}); err == nil {
+		t.Fatal("sm get accepted an undeclared name")
+	}
 }
 
 func TestLockCLI(t *testing.T) {

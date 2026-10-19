@@ -55,6 +55,9 @@ The full boundaries are in the [README](README.md#security-boundaries). In short
 - Redaction bypasses for *exact registered values* in captured output.
 - Desktop app lock bypasses that show the UI without Touch ID or the
   passphrase, or a verifier that accepts a wrong passphrase.
+- Value exposure through the local `/api/reveal` endpoint without an
+  authenticated loopback session, or a reveal that is not recorded in the
+  audit log.
 
 **Known limitations, not vulnerabilities**
 
@@ -68,6 +71,10 @@ The full boundaries are in the [README](README.md#security-boundaries). In short
 - The desktop app lock gates the UI only. CLI and MCP are not gated by it, and
   a same-user process can read `~/.config/sm/desktop.lock` and attempt an
   offline brute force of the Argon2id verifier. It is not a vault boundary.
+- The local UI and `sm get` can reveal values by explicit action, and reveals
+  are audited. Anything copied to a terminal, clipboard, screenshot or shell
+  history is outside sm's control. The MCP surface still has no
+  value-returning tool.
 - The audit hash chain detects interior damage but cannot stop same-user
   rewriting or truncation.
 - `sm doctor` is a bounded scanner for registered values, not a proof that a

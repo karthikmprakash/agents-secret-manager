@@ -66,6 +66,8 @@ func main() {
 		err = cmdImport(args)
 	case "env":
 		err = cmdEnv(args)
+	case "get":
+		err = cmdGet(args)
 	case "exec":
 		err = cmdExec(args)
 	case "inject":

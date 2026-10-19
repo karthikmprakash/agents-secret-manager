@@ -13,6 +13,8 @@ func cmdSetup(args []string) error {
 	fs := flag.NewFlagSet("sm setup", flag.ContinueOnError)
 	dryRun := fs.Bool("dry-run", false, "show what would be configured without changing anything")
 	agent := fs.String("agent", "", "wire only this detected harness")
+	remove := fs.Bool("remove", false, "remove the sm MCP entry instead of adding it")
+	all := fs.Bool("all", false, "with --remove, remove from every detected harness")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
@@ -20,7 +22,10 @@ func cmdSetup(args []string) error {
 		return err
 	}
 	if fs.NArg() > 0 {
-		return fmt.Errorf("usage: sm setup [--dry-run] [--agent NAME]")
+		return fmt.Errorf("usage: sm setup [--dry-run] [--agent NAME] [--remove [--all]]")
+	}
+	if *remove && *dryRun {
+		return fmt.Errorf("choose --remove or --dry-run, not both")
 	}
 
 	targets, err := detectAgentTargets()
@@ -38,6 +43,12 @@ func cmdSetup(args []string) error {
 			return fmt.Errorf("harness %q is not installed or detected — run `sm agents` to see detected harnesses", *agent)
 		}
 		targets = filtered
+	}
+	if *remove && *agent == "" && !*all {
+		return fmt.Errorf("choose `--agent NAME` or `--all` with --remove")
+	}
+	if *remove {
+		return removeTargets(targets)
 	}
 
 	mode := ""
@@ -84,6 +95,34 @@ func cmdSetup(args []string) error {
 		"check the whole setup: "+cyan("sm status"))
 	if failed > 0 {
 		return fmt.Errorf("%s — rerun `sm setup` to retry", quantity(failed, "harness configuration failed", "harness configurations failed"))
+	}
+	return nil
+}
+
+// removeTargets deletes the sm MCP entry from the selected harness configs.
+func removeTargets(targets []wireup.Target) error {
+	if len(targets) == 0 {
+		fmt.Println("  " + markWarn() + " no supported harnesses detected on this Mac")
+		return nil
+	}
+	fmt.Printf("%s %s\n\n", bold("sm setup --remove"), dim("· "+quantity(len(targets), "harness", "harnesses")))
+	removed, failed := 0, 0
+	for _, target := range targets {
+		status, err := target.Remove()
+		if err != nil {
+			fmt.Printf("  %s %-15s %s\n", markErr(), target.Name, red(err.Error()))
+			failed++
+			continue
+		}
+		removed++
+		fmt.Printf("  %s %-15s %s\n", markOK(), target.Name, status)
+	}
+	fmt.Println()
+	fmt.Printf("  %s\n", fmt.Sprintf("%s %d removed · %s %d failed", markOK(), removed, markWarn(), failed))
+	nextBlock("restart the apps so they drop the sm MCP server",
+		"check the result: "+cyan("sm agents"))
+	if failed > 0 {
+		return fmt.Errorf("%s — rerun `sm setup --remove` to retry", quantity(failed, "removal failed", "removals failed"))
 	}
 	return nil
 }

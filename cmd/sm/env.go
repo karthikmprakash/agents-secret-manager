@@ -20,11 +20,13 @@ type envRow struct {
 	ref       string
 	status    string
 	config    bool
+	value     string
 }
 
 func cmdEnv(args []string) error {
 	fs := flag.NewFlagSet("sm env", flag.ContinueOnError)
 	verbose := fs.Bool("verbose", false, "include each entry's full vault reference")
+	showConfig := fs.Bool("show-config", false, "print plain config values (sensitive values stay hidden)")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
@@ -32,7 +34,7 @@ func cmdEnv(args []string) error {
 		return err
 	}
 	if fs.NArg() > 0 {
-		return fmt.Errorf("usage: sm env [--verbose]")
+		return fmt.Errorf("usage: sm env [--verbose] [--show-config]")
 	}
 
 	cwd, err := os.Getwd()
@@ -64,7 +66,7 @@ func cmdEnv(args []string) error {
 		return err
 	}
 
-	fmt.Printf("%s %s\n\n", bold("sm env"), dim("· values are never printed"))
+	fmt.Printf("%s %s\n\n", bold("sm env"), dim("· sensitive values are never printed"))
 	if loaded.GlobalPath != "" {
 		field("global", shortHome(loaded.GlobalPath))
 	}
@@ -116,7 +118,7 @@ func cmdEnv(args []string) error {
 		case parseErr != nil:
 			row.status = "invalid ref"
 		default:
-			_, found, getErr := v.Get(ref.Path)
+			stored, found, getErr := v.Get(ref.Path)
 			switch {
 			case getErr != nil:
 				row.status = "error"
@@ -124,6 +126,9 @@ func cmdEnv(args []string) error {
 				row.status = "missing"
 			default:
 				row.status = "present"
+				if !secret.IsSensitive() {
+					row.value = stored
+				}
 			}
 		}
 		rows = append(rows, row)
@@ -165,21 +170,31 @@ func cmdEnv(args []string) error {
 		}
 		fmt.Printf("%s %s\n", bold(label), dim(fmt.Sprintf("· %d", len(groups[service]))))
 		w := tabwriter.NewWriter(os.Stdout, 2, 4, 2, ' ', 0)
+		columns := "  NAME\tTYPE\tTRANSPORT\tSTATUS"
 		if *verbose {
-			fmt.Fprintln(w, "  NAME\tTYPE\tTRANSPORT\tSTATUS\tREF")
-		} else {
-			fmt.Fprintln(w, "  NAME\tTYPE\tTRANSPORT\tSTATUS")
+			columns += "\tREF"
 		}
+		if *showConfig {
+			columns += "\tVALUE"
+		}
+		fmt.Fprintln(w, columns)
 		for _, row := range groups[service] {
 			kind := "secret"
 			if row.config {
 				kind = "config"
 			}
+			line := fmt.Sprintf("  %s\t%s\t%s\t%s", row.name, kind, row.transport, row.status)
 			if *verbose {
-				fmt.Fprintf(w, "  %s\t%s\t%s\t%s\t%s\n", row.name, kind, row.transport, row.status, row.ref)
-			} else {
-				fmt.Fprintf(w, "  %s\t%s\t%s\t%s\n", row.name, kind, row.transport, row.status)
+				line += "\t" + row.ref
 			}
+			if *showConfig {
+				value := "-"
+				if row.config {
+					value = truncateValue(row.value)
+				}
+				line += "\t" + value
+			}
+			fmt.Fprintln(w, line)
 		}
 		w.Flush()
 		fmt.Println()
@@ -200,9 +215,24 @@ func cmdEnv(args []string) error {
 		summary += " · " + quantity(n, "group", "groups")
 	}
 	fmt.Println(summary)
+	if *showConfig {
+		fmt.Println(dim("config values are shown; sensitive values stay hidden (use `sm get NAME` to reveal one)"))
+	} else {
+		fmt.Println(dim("values are never printed by sm env; add --show-config for plain config"))
+	}
 	if missing > 0 {
-		nextBlock(markWarn()+" restore or rotate the missing entries; names above are safe to share",
-			dim("values are never printed by sm env"))
+		nextBlock(markWarn() + " restore or rotate the missing entries; names above are safe to share")
 	}
 	return nil
+}
+
+func truncateValue(value string) string {
+	if value == "" {
+		return "-"
+	}
+	runes := []rune(value)
+	if len(runes) > 48 {
+		return string(runes[:45]) + "…"
+	}
+	return value
 }

@@ -16,7 +16,7 @@ type commandDoc struct {
 
 var commandOrder = []string{
 	"onboard", "status", "agents",
-	"add", "import", "env", "exec", "inject", "rotate",
+	"add", "import", "env", "get", "exec", "inject", "rotate",
 	"group", "service",
 	"setup", "config", "mcp",
 	"init", "doctor", "log",
@@ -30,7 +30,7 @@ var helpGroups = []struct {
 	commands []string
 }{
 	{"getting started", []string{"onboard", "status", "agents"}},
-	{"secrets", []string{"add", "import", "env", "exec", "inject", "rotate"}},
+	{"secrets", []string{"add", "import", "env", "get", "exec", "inject", "rotate"}},
 	{"groups", []string{"group", "service"}},
 	{"agent wiring", []string{"setup", "config", "mcp"}},
 	{"project & health", []string{"init", "doctor", "log"}},
@@ -109,12 +109,24 @@ var commandDocs = map[string]commandDoc{
 		},
 	},
 	"env": {
-		summary: "list declared secrets, groups and status (never values)",
-		usage:   "sm env [--verbose]",
-		options: []string{"--verbose   include each entry's full vault reference"},
+		summary: "list declared secrets, groups and status",
+		usage:   "sm env [--verbose] [--show-config]",
+		options: []string{
+			"--verbose       include each entry's full vault reference",
+			"--show-config   print plain config values; sensitive values stay hidden",
+		},
 		examples: []string{
 			"sm env",
-			"sm env --verbose",
+			"sm env --show-config",
+		},
+	},
+	"get": {
+		summary: "print one stored value locally (audited)",
+		usage:   "sm get NAME [--scope global|project]",
+		options: []string{"--scope   choose the global or project entry when both exist"},
+		examples: []string{
+			"sm get STRIPE_API_KEY",
+			"sm get STRIPE_API_KEY | pbcopy",
 		},
 	},
 	"exec": {
@@ -179,16 +191,20 @@ var commandDocs = map[string]commandDoc{
 		},
 	},
 	"setup": {
-		summary: "wire detected harnesses to this sm binary",
-		usage:   "sm setup [--dry-run] [--agent NAME]",
+		summary: "wire or unwire detected harnesses to this sm binary",
+		usage:   "sm setup [--dry-run] [--agent NAME] [--remove [--all]]",
 		options: []string{
 			"--dry-run       show what would change without writing",
-			"--agent NAME    wire only one detected harness",
+			"--agent NAME    wire or remove only one detected harness",
+			"--remove        remove the sm MCP entry instead of adding it",
+			"--all           with --remove, remove from every detected harness",
 		},
 		examples: []string{
 			"sm setup",
 			"sm setup --dry-run",
 			"sm setup --agent claude",
+			"sm setup --remove --agent claude",
+			"sm setup --remove --all",
 		},
 	},
 	"config": {

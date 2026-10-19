@@ -139,8 +139,10 @@
           <div class="feature-stack">
             <article><h3>A group for each service.</h3><p>Keep a base URL beside its API key. Mark plain config separately, and inject a whole group when you need it.</p><div class="example-command"><code>sm exec --service stripe -- ./app</code></div></article>
             <article><h3>References, not duplicated keys.</h3><p>Use global secrets in any folder. Project manifests and .env references point to values without containing them.</p><div class="example-command"><code>GITHUB_TOKEN=sm://GITHUB_TOKEN</code></div></article>
+            <article><h3>Unwire when you want.</h3><p>Remove the sm MCP entry from one harness or all of them, without touching the rest of its configuration.</p><div class="example-command"><code>sm setup --remove --agent claude</code></div></article>
             <article><h3>A backup you own.</h3><p>Save a passphrase-encrypted archive. Verify it locally and restore into an empty vault on another Mac.</p><a class="text-link" href="https://github.com/karthikmprakash/agents-secret-manager/blob/main/docs/GUIDE.md#recovery">Recovery guide <span aria-hidden="true">↗</span></a></article>
             <article><h3>Locked by default.</h3><p>The desktop apps unlock with a passphrase, Touch ID on macOS, or a fingerprint on Linux. The CLI and MCP stay available.</p><div class="example-command"><code>sm lock set</code></div></article>
+            <article><h3>Values when you need them.</h3><p>Plain config is visible in the app. Reveal a secret for 20 seconds, or print one locally. Reveals are audited, and MCP still cannot return values.</p><div class="example-command"><code>sm get STRIPE_API_KEY</code></div></article>
           </div>
         </div>
         <details class="architecture-details" id="architecture">

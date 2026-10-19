@@ -4,7 +4,6 @@ package wireup
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -25,11 +24,20 @@ type Target struct {
 	Detail string
 	dry    string
 	apply  func() (string, error)
+	remove func() (string, error)
 	status func() string
 }
 
 // Apply wires the harness and returns a human-readable status.
 func (t Target) Apply() (string, error) { return t.apply() }
+
+// Remove un-wires the harness. It is a no-op when sm is already absent.
+func (t Target) Remove() (string, error) {
+	if t.remove == nil {
+		return "", fmt.Errorf("removing %s is not supported yet", t.Name)
+	}
+	return t.remove()
+}
 
 // DryRun describes what Apply would do.
 func (t Target) DryRun() string { return t.dry }
@@ -56,7 +64,7 @@ func configStatus(path, key, name, exe string) string {
 	} else if strings.HasSuffix(path, ".toml") {
 		_, err = toml.Decode(string(data), &root)
 	} else {
-		err = json.Unmarshal(data, &root)
+		root, err = agentcfg.ParseJSONLoose(data)
 	}
 	if err != nil {
 		return "unknown"
@@ -184,36 +192,58 @@ func Detect(exe, home string) []Target {
 		return detail + " — configured", nil
 	}
 
-	// OpenCode — global config, via its own CLI (preserves unrelated config).
-	opencode := findBin("opencode", home)
-	if opencode != "" || dirExists(filepath.Join(home, ".config", "opencode")) {
-		if opencode == "" {
-			opencode = "opencode"
+	// OpenCode — global config. Prefer the official CLI when it is available,
+	// then fall back to a direct JSON/JSONC merge so a GUI PATH or a changed
+	// CLI syntax cannot leave the harness unwired.
+	opencodeDir := filepath.Join(home, ".config", "opencode")
+	opencodeBin := findBin("opencode", home)
+	if opencodeBin != "" || dirExists(opencodeDir) {
+		opencodeConfig := filepath.Join(opencodeDir, "opencode.json")
+		for _, base := range []string{"opencode.json", "opencode.jsonc"} {
+			p := filepath.Join(opencodeDir, base)
+			if fileExists(p) {
+				opencodeConfig = p
+				break
+			}
 		}
-		argv := []string{opencode, "mcp", "add", "--global", "sm", "--", exe, "mcp"}
+		argv := []string{}
+		if opencodeBin != "" {
+			argv = []string{opencodeBin, "mcp", "add", "--global", "sm", "--", exe, "mcp"}
+		}
+		dry := "would add sm to " + shortHomePath(home, opencodeConfig)
+		if len(argv) > 0 {
+			dry = "would run: " + strings.Join(argv, " ") + " (direct config fallback)"
+		}
 		targets = append(targets, Target{
 			Name:   "opencode",
 			Detail: "global MCP server",
-			dry:    "would run: " + strings.Join(argv, " "),
-			status: func() string {
-				for _, base := range []string{"opencode.json", "opencode.jsonc"} {
-					p := filepath.Join(home, ".config", "opencode", base)
-					if fileExists(p) {
-						return configStatus(p, "mcp.servers", "sm", exe)
+			dry:    dry,
+			status: func() string { return configStatus(opencodeConfig, "mcp.servers", "sm", exe) },
+			apply: func() (string, error) {
+				if len(argv) > 0 {
+					if msg, err := runCLI(argv, `global MCP server "sm"`); err == nil {
+						return msg, nil
 					}
 				}
-				return "not configured"
+				entry := map[string]any{"type": "local", "command": []string{exe, "mcp"}, "enabled": true}
+				if err := agentcfg.MergeJSONPath(opencodeConfig, []string{"mcp", "servers"}, "sm", entry); err != nil {
+					return "", err
+				}
+				return "global MCP server \"sm\" in " + shortHomePath(home, opencodeConfig) + " (restart OpenCode)", nil
 			},
-			apply: func() (string, error) {
-				return runCLI(argv, `global MCP server "sm"`)
+			remove: func() (string, error) {
+				if err := agentcfg.RemoveJSONPath(opencodeConfig, []string{"mcp", "servers"}, "sm"); err != nil {
+					return "", err
+				}
+				return "removed sm from " + shortHomePath(home, opencodeConfig), nil
 			},
 		})
 	}
 
-	// Claude Code — user scope, via its own CLI.
-	if claude := findBin("claude", home); claude != "" {
-		_ = claude
-		claudeConfig := filepath.Join(home, ".claude.json")
+	// Claude Code — user scope. Its config can exist even when the CLI is not
+	// on a GUI app's PATH, so detect either.
+	claudeConfig := filepath.Join(home, ".claude.json")
+	if findBin("claude", home) != "" || fileExists(claudeConfig) {
 		targets = append(targets, Target{
 			Name:   "claude",
 			Detail: "user-scope MCP server",
@@ -224,6 +254,12 @@ func Detect(exe, home string) []Target {
 					return "", err
 				}
 				return "user MCP configuration saved; reconnect or restart Claude Code", nil
+			},
+			remove: func() (string, error) {
+				if err := agentcfg.RemoveJSONMCPServers(claudeConfig); err != nil {
+					return "", err
+				}
+				return "removed sm from ~/.claude.json", nil
 			},
 		})
 	}
@@ -248,6 +284,12 @@ func Detect(exe, home string) []Target {
 				}
 				return "mcp_servers.sm in ~/.hermes/config.yaml (auto-reloads)", nil
 			},
+			remove: func() (string, error) {
+				if err := agentcfg.RemoveYAMLMCPServers(hermesCfg, "sm"); err != nil {
+					return "", err
+				}
+				return "removed mcp_servers.sm from ~/.hermes/config.yaml", nil
+			},
 		})
 	}
 
@@ -265,6 +307,12 @@ func Detect(exe, home string) []Target {
 					return "", err
 				}
 				return "mcp_servers.sm in ~/.codex/config.toml (restart Codex)", nil
+			},
+			remove: func() (string, error) {
+				if err := agentcfg.RemoveTOMLTable(codexConfig, "mcp_servers.sm"); err != nil {
+					return "", err
+				}
+				return "removed mcp_servers.sm from ~/.codex/config.toml", nil
 			},
 		})
 	}
@@ -316,6 +364,20 @@ func Detect(exe, home string) []Target {
 				}
 				return fmt.Sprintf("sm MCP server in %d dsh profiles (restart DeepSeek Harness)", len(patches)), nil
 			},
+			remove: func() (string, error) {
+				if len(patches) == 0 {
+					return "", errors.New("no dsh profile exists yet")
+				}
+				for _, patch := range patches {
+					if err := agentcfg.RemoveYAMLBlock(patch, "sm:mcp"); err != nil {
+						return "", err
+					}
+				}
+				if len(patches) == 1 {
+					return "removed sm from " + detail, nil
+				}
+				return fmt.Sprintf("removed sm from %d dsh profiles", len(patches)), nil
+			},
 		})
 	}
 
@@ -348,10 +410,23 @@ func Detect(exe, home string) []Target {
 				}
 				return "mcpServers.sm in " + t.display, nil
 			},
+			remove: func() (string, error) {
+				if err := agentcfg.RemoveJSONMCPServers(t.path); err != nil {
+					return "", err
+				}
+				return "removed mcpServers.sm from " + t.display, nil
+			},
 		})
 	}
 
 	return targets
+}
+
+func shortHomePath(home, path string) string {
+	if home != "" && strings.HasPrefix(path, home) {
+		return "~" + strings.TrimPrefix(path, home)
+	}
+	return path
 }
 
 func dirExists(path string) bool {

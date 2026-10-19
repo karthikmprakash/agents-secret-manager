@@ -61,6 +61,7 @@ func Start(port int) (*Server, error) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /", s.auth(s.index))
 	mux.HandleFunc("GET /api/state", s.auth(s.state))
+	mux.HandleFunc("POST /api/reveal", s.auth(s.reveal))
 	mux.HandleFunc("POST /api/initialize", s.auth(s.initialize))
 	mux.HandleFunc("POST /api/add", s.auth(s.add))
 	mux.HandleFunc("POST /api/group", s.auth(s.group))
@@ -161,6 +162,11 @@ type secretView struct {
 	Status    string `json:"status"`
 	Service   string `json:"service,omitempty"`
 	Sensitive bool   `json:"sensitive"`
+	// Preview is the full value for plain config entries, or a last-four hint
+	// for sensitive values. The full sensitive value is only returned by
+	// /api/reveal after an explicit local action.
+	Preview    string `json:"preview,omitempty"`
+	Revealable bool   `json:"revealable,omitempty"`
 }
 type auditView struct {
 	TS      string   `json:"ts"`
@@ -257,15 +263,27 @@ func (s *Server) state(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		status := "unavailable"
+		preview := ""
+		revealable := false
 		if v != nil {
 			ref, _ := manifest.ParseRef(sec.Ref)
-			_, found, _ := v.Get(ref.Path)
+			stored, found, _ := v.Get(ref.Path)
 			status = "missing"
 			if found {
 				status = "present"
+				if sec.IsSensitive() {
+					preview = maskHint(stored)
+					revealable = true
+				} else {
+					preview = stored
+				}
 			}
 		}
-		resp.Secrets = append(resp.Secrets, secretView{Name: name, Scope: scope, Transport: sec.Transport, Ref: sec.Ref, Status: status, Service: sec.Service, Sensitive: sec.IsSensitive()})
+		resp.Secrets = append(resp.Secrets, secretView{
+			Name: name, Scope: scope, Transport: sec.Transport, Ref: sec.Ref,
+			Status: status, Service: sec.Service, Sensitive: sec.IsSensitive(),
+			Preview: preview, Revealable: revealable,
+		})
 	}
 	sort.Slice(resp.Secrets, func(i, j int) bool { return resp.Secrets[i].Name < resp.Secrets[j].Name })
 	dir, err := config.Dir()
@@ -283,6 +301,102 @@ func (s *Server) state(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, 200, resp)
+}
+
+// maskHint keeps the last four characters of a sensitive value so the owner can
+// recognize it without putting the whole value on screen.
+func maskHint(value string) string {
+	runes := []rune(value)
+	if len(runes) < 8 {
+		return "••••"
+	}
+	return "••••" + string(runes[len(runes)-4:])
+}
+
+type revealRequest struct {
+	Name  string `json:"name"`
+	Scope string `json:"scope,omitempty"`
+}
+
+// reveal returns one value to the authenticated local UI and records the
+// action. It is intentionally not exposed over MCP.
+func (s *Server) reveal(w http.ResponseWriter, r *http.Request) {
+	var req revealRequest
+	if err := decode(r, &req); err != nil {
+		writeError(w, 400, err)
+		return
+	}
+	if !manifest.ValidName(req.Name) {
+		writeError(w, 400, fmt.Errorf("invalid secret name"))
+		return
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		writeError(w, 500, err)
+		return
+	}
+	loaded, err := manifest.LoadOptional(cwd)
+	if err != nil {
+		writeError(w, 500, err)
+		return
+	}
+	merged := loaded.Merged()
+	secret, ok := merged.Secrets[req.Name]
+	if !ok {
+		writeError(w, 404, fmt.Errorf("%s is not declared", req.Name))
+		return
+	}
+	if req.Scope == "global" && loaded.Project != nil {
+		if _, projectOwns := loaded.Project.Secrets[req.Name]; projectOwns {
+			if global, ok := loaded.Global.Secrets[req.Name]; ok {
+				secret = global
+			}
+		}
+	}
+	ref, err := manifest.ParseRef(secret.Ref)
+	if err != nil {
+		writeError(w, 400, err)
+		return
+	}
+	identity, err := keys.Get()
+	if err != nil {
+		writeError(w, 500, err)
+		return
+	}
+	vaultPath, err := keys.VaultPath()
+	if err != nil {
+		writeError(w, 500, err)
+		return
+	}
+	v, err := vaultfile.Open(vaultPath, identity)
+	if err != nil {
+		writeError(w, 500, err)
+		return
+	}
+	value, found, err := v.Get(ref.Path)
+	if err != nil {
+		writeError(w, 500, err)
+		return
+	}
+	if !found {
+		writeError(w, 404, fmt.Errorf("%s has no stored value", req.Name))
+		return
+	}
+	if dir, err := config.Dir(); err == nil {
+		_ = audit.Append(dir, audit.Entry{
+			TS:      time.Now().UTC().Format(time.RFC3339),
+			Session: audit.NewSession(),
+			Action:  "reveal",
+			Secrets: []string{req.Name},
+			Cmd:     "sm ui reveal",
+			CWD:     cwd,
+		})
+	}
+	writeJSON(w, 200, map[string]any{
+		"name":      req.Name,
+		"value":     value,
+		"sensitive": secret.IsSensitive(),
+	})
 }
 
 func (s *Server) initialize(w http.ResponseWriter, r *http.Request) {
@@ -784,7 +898,8 @@ func (s *Server) mcpConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 type setupRequest struct {
-	Only string `json:"only"`
+	Only   string `json:"only"`
+	Remove bool   `json:"remove"`
 }
 
 func (s *Server) setup(w http.ResponseWriter, r *http.Request) {
@@ -808,10 +923,20 @@ func (s *Server) setup(w http.ResponseWriter, r *http.Request) {
 		if req.Only != "" && req.Only != t.Name {
 			continue
 		}
-		status, err := t.Apply()
-		item := map[string]any{"name": t.Name, "status": status}
+		var status string
+		var err error
+		if req.Remove {
+			status, err = t.Remove()
+		} else {
+			status, err = t.Apply()
+		}
+		item := map[string]any{"name": t.Name, "status": status, "removed": req.Remove}
 		if err != nil {
-			item["status"] = "Configuration failed; existing configuration was preserved. Use sm setup for diagnostics."
+			if req.Remove {
+				item["status"] = "Could not remove the sm entry; inspect the harness configuration."
+			} else {
+				item["status"] = "Configuration failed; existing configuration was preserved. Use sm setup for diagnostics."
+			}
 			item["failed"] = true
 		}
 		results = append(results, item)
