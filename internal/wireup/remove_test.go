@@ -59,6 +59,36 @@ func TestOpenCodeJSONCStatusAndRemove(t *testing.T) {
 	t.Fatal("opencode not detected")
 }
 
+func TestSymlinkedCommandCountsAsConfigured(t *testing.T) {
+	home := t.TempDir()
+	real := filepath.Join(home, "real-sm")
+	if err := os.WriteFile(real, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(home, "sm-link")
+	if err := os.Symlink(real, link); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(home, ".cursor", "mcp.json")
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	body := `{"mcpServers":{"sm":{"command":"` + link + `","args":["mcp"]}}}`
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, target := range Detect(real, home) {
+		if target.Name != "cursor" {
+			continue
+		}
+		if got := target.Status(); got != "configured" {
+			t.Fatalf("symlinked command status = %q, want configured", got)
+		}
+		return
+	}
+	t.Fatal("cursor not detected")
+}
+
 func TestApplyThenRemoveForEveryDetectedTarget(t *testing.T) {
 	home := t.TempDir()
 	mkdir := func(parts ...string) string {

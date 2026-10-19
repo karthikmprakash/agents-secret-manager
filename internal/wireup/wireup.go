@@ -94,10 +94,23 @@ func configStatus(path, key, name, exe string) string {
 		args = []any{argv[1]}
 	}
 	argv, ok := args.([]any)
-	if command == exe && ok && len(argv) == 1 && argv[0] == "mcp" {
+	commandPath, _ := command.(string)
+	if resolvePath(commandPath) == resolvePath(exe) && ok && len(argv) == 1 && argv[0] == "mcp" {
 		return "configured"
 	}
 	return "different command"
+}
+
+// resolvePath treats a symlinked binary path as the same command, so installs
+// that keep ~/.local/bin/sm as a symlink to the Homebrew binary stay wired.
+func resolvePath(path string) string {
+	if path == "" {
+		return ""
+	}
+	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+		return resolved
+	}
+	return path
 }
 
 func yamlMappingValue(n *yaml.Node, key string) *yaml.Node {
@@ -143,7 +156,7 @@ func dshPatchStatus(path, exe string) string {
 		}
 		command := yamlMappingValue(config, "command")
 		args := yamlMappingValue(config, "args")
-		if command == nil || command.Value != exe || args == nil || len(args.Content) != 1 || args.Content[0].Value != "mcp" {
+		if command == nil || resolvePath(command.Value) != resolvePath(exe) || args == nil || len(args.Content) != 1 || args.Content[0].Value != "mcp" {
 			return "different command"
 		}
 		return "configured"
