@@ -12,6 +12,7 @@ import (
 	"github.com/karthikmprakash/agents-secret-manager/internal/keys"
 	"github.com/karthikmprakash/agents-secret-manager/internal/manifest"
 	"github.com/karthikmprakash/agents-secret-manager/internal/store/vaultfile"
+	"github.com/karthikmprakash/agents-secret-manager/internal/update"
 	"github.com/karthikmprakash/agents-secret-manager/internal/wireup"
 )
 
@@ -175,6 +176,9 @@ func cmdStatus(args []string) error {
 		field("backup", yellow("no archive recorded"))
 	} else {
 		field("backup", green("✓ "+lastBackup.Local().Format("2006-01-02 15:04")))
+	}
+	if cached, ok := update.Cached(version); ok && cached.Available {
+		field("update", cyan("v"+cached.Latest+" available")+dim(" · sm update"))
 	}
 
 	var next []string

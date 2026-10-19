@@ -263,7 +263,7 @@ action:
 
 - Plain config (`sensitive = false`) is shown in the UI and with
   `sm env --show-config`.
-- Sensitive entries show a last-four hint in the UI. **Reveal value** shows the
+- Sensitive entries show a last-four hint in the UI. The eye button reveals the
   full value for 20 seconds.
 - `sm get NAME` prints one value to the terminal.
 - Every reveal appends a `reveal` entry to the audit log. Treat terminal
@@ -301,6 +301,28 @@ restore **before** onboarding creates a vault. The archive format is bounded to
 transaction; keep the original archive until restore is verified.
 
 There is no cloud backup and no password-reset service.
+
+## Updates
+
+```sh
+sm update          # explicit check against GitHub Releases
+sm update --json   # machine-readable result
+```
+
+The check reads the latest published release from
+`https://api.github.com/repos/karthikmprakash/agents-secret-manager/releases/latest`
+and compares its tag with the running build. The result is cached in
+`~/.config/sm/update.json`, so the status dashboard and the app can show an
+**Update available** banner without checking again. The cached banner appears
+in the UI when available; the download icon in the top bar checks on demand.
+
+There is **no background update check and no telemetry**. `sm update` / the UI
+button makes one HTTPS request to GitHub and sends the normal request metadata
+(IP address and `User-Agent: sm/<version>`). The app does not report usage,
+secret names, or vault contents.
+
+For Homebrew installs, update with `brew upgrade --cask sm`. Direct downloads
+are linked from the release page.
 
 ## Audit and leak scan
 

@@ -26,6 +26,7 @@ func cmdUi(args []string) error {
 		return fmt.Errorf("usage: sm ui [--port N] [--no-open]")
 	}
 
+	uiserver.BuildVersion = version
 	srv, err := uiserver.Start(*port)
 	if err != nil {
 		return err

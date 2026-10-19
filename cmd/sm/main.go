@@ -96,6 +96,8 @@ func main() {
 		err = cmdLog(args)
 	case "completion":
 		err = cmdCompletion(args)
+	case "update":
+		err = cmdUpdate(args)
 	case "version", "--version", "-v":
 		fmt.Println("sm", version)
 		return

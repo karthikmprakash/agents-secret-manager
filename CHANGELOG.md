@@ -7,6 +7,23 @@ the `0.x` series.
 
 ## [Unreleased]
 
+### Added
+
+- Update checks from GitHub Releases: `sm update` plus an explicit download
+  icon in the UI. Results are cached in `~/.config/sm/update.json`, shown in
+  `sm status`, and surfaced as an **Update available** banner. No background
+  check or telemetry.
+
+### Changed
+
+- Sensitive values use an eye button on the row instead of a menu action; the
+  value auto-hides after 20 seconds.
+
+### Fixed
+
+- Symlinked `sm` paths (for example `~/.local/bin/sm` pointing at the Homebrew
+  binary) count as configured instead of showing as "different path".
+
 ## [0.5.2] - 2026-10-19
 
 OpenCode wiring fallback, harness removal, and local value access.

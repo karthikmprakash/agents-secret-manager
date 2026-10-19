@@ -253,6 +253,7 @@ sm agents               # detected harnesses and wiring state
 sm env --verbose        # declared entries and references, never values
 sm env --show-config    # plain config values; sensitive values stay hidden
 sm get STRIPE_API_KEY   # print one value locally (audited)
+sm update               # check GitHub Releases for a newer version
 sm setup --remove --agent claude   # unwire a harness
 sm log --limit 20       # recent audit entries
 sm log verify           # verify the hash chain

@@ -21,7 +21,7 @@ var commandOrder = []string{
 	"setup", "config", "mcp",
 	"init", "doctor", "log",
 	"backup", "restore",
-	"ui", "lock",
+	"ui", "lock", "update",
 	"help", "completion", "version",
 }
 
@@ -36,6 +36,7 @@ var helpGroups = []struct {
 	{"project & health", []string{"init", "doctor", "log"}},
 	{"recovery", []string{"backup", "restore"}},
 	{"local ui", []string{"ui", "lock"}},
+	{"updates", []string{"update"}},
 	{"reference", []string{"help", "completion", "version"}},
 }
 
@@ -285,6 +286,15 @@ var commandDocs = map[string]commandDoc{
 			"sm lock set",
 			"sm lock status",
 			"sm lock clear",
+		},
+	},
+	"update": {
+		summary: "check GitHub Releases for a newer version",
+		usage:   "sm update [--json]",
+		options: []string{"--json   print the check result as JSON"},
+		examples: []string{
+			"sm update",
+			"sm update --json",
 		},
 	},
 	"completion": {

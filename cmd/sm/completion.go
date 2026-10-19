@@ -54,6 +54,7 @@ var completionFlagWords = map[string][]string{
 	"restore":    {"--file", "--verify", "--help"},
 	"ui":         {"--port", "--no-open", "--help"},
 	"lock":       {"status", "set", "verify", "clear", "--stdin", "--force", "--quiet", "--yes", "--help"},
+	"update":     {"--json", "--help"},
 	"completion": {"bash", "zsh", "fish", "--help"},
 	"version":    {"--help"},
 	"help":       commandOrder,
@@ -79,6 +80,7 @@ _sm_complete() {
         service) COMPREPLY=( $(compgen -W "` + completionWords("service") + `" -- "${cur}") ) ;;
         env) COMPREPLY=( $(compgen -W "` + completionWords("env") + `" -- "${cur}") ) ;;
         get) COMPREPLY=( $(compgen -W "` + completionWords("get") + `" -- "${cur}") ) ;;
+        update) COMPREPLY=( $(compgen -W "` + completionWords("update") + `" -- "${cur}") ) ;;
         rotate) COMPREPLY=( $(compgen -W "` + completionWords("rotate") + `" -- "${cur}") ) ;;
         doctor) COMPREPLY=( $(compgen -W "` + completionWords("doctor") + `" -- "${cur}") ) ;;
         setup) COMPREPLY=( $(compgen -W "` + completionWords("setup") + `" -- "${cur}") ) ;;
@@ -200,6 +202,9 @@ _sm() {
         ui)
             _arguments '--port[loopback port]:port:' '--no-open[do not open a browser]' '--help[show help]'
             ;;
+        update)
+            _arguments '--json[print JSON]' '--help[show help]'
+            ;;
         completion)
             _arguments '1:shell:(bash zsh fish)' '--help[show help]'
             ;;
@@ -268,6 +273,7 @@ complete -c sm -n '__fish_seen_subcommand_from service' -l scope -r -d 'global o
 complete -c sm -n '__fish_seen_subcommand_from env' -l verbose -d 'Show vault references'
 complete -c sm -n '__fish_seen_subcommand_from env' -l show-config -d 'Show plain config values'
 complete -c sm -n '__fish_seen_subcommand_from get' -l scope -r -d 'global or project'
+complete -c sm -n '__fish_seen_subcommand_from update' -l json -d 'Print JSON'
 complete -c sm -n '__fish_seen_subcommand_from rotate' -l generate -r -d 'Generate the new value'
 complete -c sm -n '__fish_seen_subcommand_from doctor' -l no-history -d 'Skip git history'
 complete -c sm -n '__fish_seen_subcommand_from doctor' -l depth -r -d 'Commit depth'

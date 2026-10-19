@@ -3,6 +3,7 @@ package uiserver
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -32,8 +33,13 @@ import (
 	"github.com/karthikmprakash/agents-secret-manager/internal/scan"
 	"github.com/karthikmprakash/agents-secret-manager/internal/secrets"
 	"github.com/karthikmprakash/agents-secret-manager/internal/store/vaultfile"
+	"github.com/karthikmprakash/agents-secret-manager/internal/update"
 	"github.com/karthikmprakash/agents-secret-manager/internal/wireup"
 )
+
+// BuildVersion is set by the CLI before starting the UI. The update check is
+// explicit; this value is only used for comparison and the User-Agent.
+var BuildVersion = "dev"
 
 //go:embed ui/index.html
 var uiFS embed.FS
@@ -62,6 +68,7 @@ func Start(port int) (*Server, error) {
 	mux.HandleFunc("GET /", s.auth(s.index))
 	mux.HandleFunc("GET /api/state", s.auth(s.state))
 	mux.HandleFunc("POST /api/reveal", s.auth(s.reveal))
+	mux.HandleFunc("POST /api/update/check", s.auth(s.checkUpdate))
 	mux.HandleFunc("POST /api/initialize", s.auth(s.initialize))
 	mux.HandleFunc("POST /api/add", s.auth(s.add))
 	mux.HandleFunc("POST /api/group", s.auth(s.group))
@@ -175,15 +182,16 @@ type auditView struct {
 	Cmd     string   `json:"cmd"`
 }
 type stateResponse struct {
-	Vault           string       `json:"vault"`
-	GlobalManifest  string       `json:"globalManifest"`
-	ProjectManifest string       `json:"projectManifest"`
-	ProjectName     string       `json:"projectName"`
-	Initialized     bool         `json:"initialized"`
-	VaultError      string       `json:"vaultError,omitempty"`
-	AuditError      string       `json:"auditError,omitempty"`
-	Secrets         []secretView `json:"secrets"`
-	Audit           []auditView  `json:"audit"`
+	Vault           string         `json:"vault"`
+	GlobalManifest  string         `json:"globalManifest"`
+	ProjectManifest string         `json:"projectManifest"`
+	ProjectName     string         `json:"projectName"`
+	Initialized     bool           `json:"initialized"`
+	VaultError      string         `json:"vaultError,omitempty"`
+	AuditError      string         `json:"auditError,omitempty"`
+	Secrets         []secretView   `json:"secrets"`
+	Audit           []auditView    `json:"audit"`
+	Update          *update.Result `json:"update,omitempty"`
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
@@ -300,7 +308,28 @@ func (s *Server) state(w http.ResponseWriter, r *http.Request) {
 			resp.Audit = append(resp.Audit, auditView{e.TS, e.Action, e.Secrets, e.Cmd})
 		}
 	}
+	if cached, ok := update.Cached(BuildVersion); ok {
+		resp.Update = &cached
+	}
 	writeJSON(w, 200, resp)
+}
+
+// checkUpdate is the only endpoint that contacts GitHub. The UI calls it from
+// the explicit update button; the dashboard never checks in the background.
+func (s *Server) checkUpdate(w http.ResponseWriter, r *http.Request) {
+	var body struct{}
+	if err := decode(r, &body); err != nil {
+		writeError(w, 400, err)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+	result, err := update.Check(ctx, BuildVersion)
+	if err != nil {
+		writeError(w, 502, err)
+		return
+	}
+	writeJSON(w, 200, result)
 }
 
 // maskHint keeps the last four characters of a sensitive value so the owner can

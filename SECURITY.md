@@ -75,6 +75,10 @@ The full boundaries are in the [README](README.md#security-boundaries). In short
   are audited. Anything copied to a terminal, clipboard, screenshot or shell
   history is outside sm's control. The MCP surface still has no
   value-returning tool.
+- Update checks are explicit, not background telemetry. `sm update` or the UI
+  button sends one request to GitHub Releases, including normal request
+  metadata (IP and `User-Agent`). It never sends names, values, or vault
+  contents.
 - The audit hash chain detects interior damage but cannot stop same-user
   rewriting or truncation.
 - `sm doctor` is a bounded scanner for registered values, not a proof that a

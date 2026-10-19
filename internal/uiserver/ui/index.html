@@ -195,6 +195,16 @@
   .secret-value.hint { letter-spacing: .08em; }
   .secret-value.config-value { color: var(--text-2); }
   .secret-value.revealed { color: var(--accent); }
+  .secret-value-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .secret-value-row .secret-value { flex: 1; min-width: 0; }
+  .reveal-value {
+    display: grid; place-items: center; flex: none;
+    width: 26px; height: 26px; padding: 0;
+    border: 1px solid transparent; border-radius: 6px;
+    background: transparent; color: var(--text-3); cursor: pointer;
+  }
+  .reveal-value:hover { background: var(--panel-2); color: var(--text); }
+  .reveal-value:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   .secret-name {
     font: 500 12.5px var(--mono); letter-spacing: -0.01em;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -271,6 +281,13 @@
   .agent-status { margin-left: auto; font-size: 11.5px; color: var(--text-3); }
   .agent-status.ok { color: var(--ok); }
   .agent-status.err { color: var(--err); }
+  .update-banner {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    margin: 14px 20px 0; padding: 10px 14px;
+    border: 1px solid var(--line); border-radius: var(--radius-md);
+    background: var(--panel); font-size: 12px; color: var(--text-2);
+  }
+  .update-banner .spacer { flex: 1; }
 
   .scan-controls { display: flex; align-items: center; gap: 14px; padding: 16px 20px; }
   .switch { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-2); cursor: pointer; }
@@ -615,12 +632,22 @@
       <button class="btn icon ghost" id="refresh" aria-label="Refresh" title="Refresh">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/></svg>
       </button>
+      <button class="btn icon ghost" id="checkUpdates" aria-label="Check for updates" title="Check for updates">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>
+      </button>
       <button class="btn ghost" id="importBtn" type="button">Import secrets</button>
       <button class="btn primary" id="addBtn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
         Add secret
       </button>
     </header>
+
+    <div class="update-banner" id="updateBanner" hidden>
+      <span id="updateText"></span>
+      <span class="spacer"></span>
+      <a class="btn small" id="updateLink" href="https://github.com/karthikmprakash/agents-secret-manager/releases/latest" target="_blank" rel="noopener noreferrer">Release notes</a>
+      <button class="btn small ghost" id="updateDismiss" type="button">Dismiss</button>
+    </div>
 
     <section class="view" id="view-secrets">
       <div class="notice" id="onboarding" hidden>
@@ -988,6 +1015,17 @@
     if (name === "agents") loadAgents();
   }
 
+  function renderUpdate(info) {
+    const banner = $("updateBanner");
+    if (!info || !info.available) {
+      banner.hidden = true;
+      return;
+    }
+    $("updateText").textContent = "Update available: v" + info.latest + " · you have " + info.current;
+    $("updateLink").href = info.url || "https://github.com/karthikmprakash/agents-secret-manager/releases/latest";
+    banner.hidden = false;
+  }
+
   function skeletonSecrets() {
     const list = $("secretList");
     list.textContent = "";
@@ -1010,6 +1048,7 @@
     try {
       const data = await api("/api/state");
       state.data = data;
+      renderUpdate(data.update);
       $("loadError").hidden = !data.vaultError;
       $("loadError").textContent = data.vaultError || "";
       $("onboarding").hidden = data.initialized || !!data.vaultError;
@@ -1123,40 +1162,6 @@
     const item = (label, fn) =>
       el("button", { type: "button", text: label, onclick: () => { menu.open = false; fn(); } });
     menuList.append(item("Copy ref", () => copyRef(secret.name)));
-    if (secret.revealable) {
-      let revealed = false;
-      let revealTimer = null;
-      const valueLine = () => document.getElementById("value-" + secret.name);
-      menuList.append(item("Reveal value", async () => {
-        const line = valueLine();
-        if (!line) return;
-        if (revealed) {
-          line.textContent = secret.preview || "••••";
-          line.classList.remove("revealed");
-          revealed = false;
-          return;
-        }
-        try {
-          const res = await api("/api/reveal", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name: secret.name, scope: secret.scope }),
-          });
-          line.textContent = res.value;
-          line.classList.add("revealed");
-          revealed = true;
-          clearTimeout(revealTimer);
-          revealTimer = setTimeout(() => {
-            line.textContent = secret.preview || "••••";
-            line.classList.remove("revealed");
-            revealed = false;
-          }, 20000);
-          toast("Value revealed for 20 seconds.");
-        } catch (err) {
-          toast(err.message);
-        }
-      }));
-    }
     menuList.append(item(secret.service ? "Move to group…" : "Add to group…", () => openSheet("group", secret)));
     menuList.append(item("Rotate…", () => openSheet("rotate", secret)));
     menu.append(summary, menuList);
@@ -1170,18 +1175,66 @@
       present ? null : el("span", { class: "chip warn", text: secret.status }),
     ]);
 
+    const valueText = secret.preview || (secret.status === "missing" ? "not in vault" : "");
+    const valueLine = el("div", {
+      class: "secret-value" + (secret.sensitive === false ? " config-value" : " hint"),
+      id: "value-" + secret.name,
+      text: valueText,
+      translate: "no",
+    });
+    const valueRow = el("div", { class: "secret-value-row" }, [valueLine]);
+    if (secret.revealable) {
+      const openSVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.6"/></svg>';
+      const closedSVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 3 18 18"/><path d="M10.6 6.2A10.8 10.8 0 0 1 12 6c6 0 9.5 6 9.5 6a17 17 0 0 1-2.2 2.9M6.2 6.2C3.9 7.8 2.5 12 2.5 12s3.5 6 9.5 6c1.3 0 2.5-.3 3.5-.7"/></svg>';
+      const eye = el("button", {
+        class: "reveal-value", type: "button",
+        "aria-label": "Reveal value", "aria-pressed": "false", title: "Reveal value",
+      });
+      eye.innerHTML = openSVG;
+      let revealed = false;
+      let hideTimer = null;
+      const hide = () => {
+        clearTimeout(hideTimer);
+        valueLine.textContent = secret.preview || "••••";
+        valueLine.classList.remove("revealed");
+        eye.innerHTML = openSVG;
+        eye.setAttribute("aria-label", "Reveal value");
+        eye.setAttribute("aria-pressed", "false");
+        eye.title = "Reveal value";
+        revealed = false;
+      };
+      eye.addEventListener("click", async () => {
+        if (revealed) {
+          hide();
+          return;
+        }
+        try {
+          const res = await api("/api/reveal", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: secret.name, scope: secret.scope }),
+          });
+          valueLine.textContent = res.value;
+          valueLine.classList.add("revealed");
+          eye.innerHTML = closedSVG;
+          eye.setAttribute("aria-label", "Hide value");
+          eye.setAttribute("aria-pressed", "true");
+          eye.title = "Hide value";
+          revealed = true;
+          clearTimeout(hideTimer);
+          hideTimer = setTimeout(hide, 20000);
+        } catch (err) {
+          toast(err.message);
+        }
+      });
+      valueRow.append(eye);
+    }
+
     return el("li", { class: "secret" }, [
       el("span", { class: "dot " + (present ? "ok" : "warn"), title: present ? "present" : "missing" }),
       el("div", { class: "secret-main" }, [
         el("div", { class: "secret-name", text: secret.name, translate: "no" }),
-        secret.preview || secret.status === "missing"
-          ? el("div", {
-              class: "secret-value" + (secret.sensitive === false ? " config-value" : " hint"),
-              id: "value-" + secret.name,
-              text: secret.preview || "not in vault",
-              translate: "no",
-            })
-          : null,
+        valueRow,
       ]),
       chips,
       menu,
@@ -2150,6 +2203,26 @@
     renderSecrets();
     $("filter").focus();
   });
+  $("checkUpdates").addEventListener("click", async (event) => {
+    const btn = event.currentTarget;
+    btn.disabled = true;
+    try {
+      const result = await api("/api/update/check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      if (state.data) state.data.update = result;
+      renderUpdate(result);
+      toast(result.available ? "Update available: v" + result.latest : "You're up to date (v" + result.current + ")");
+    } catch (err) {
+      toast(err.message);
+    }
+    btn.disabled = false;
+  });
+
+  $("updateDismiss").addEventListener("click", () => { $("updateBanner").hidden = true; });
+
   $("refresh").addEventListener("click", () => {
     loadState();
     if (state.view === "agents") loadAgents(true);

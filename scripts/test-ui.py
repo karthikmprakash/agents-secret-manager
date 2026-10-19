@@ -63,6 +63,21 @@ def run():
             target.on("request", lambda request: external_requests.append("external") if urlsplit(request.url).scheme in ("http", "https") and urlsplit(request.url).hostname != "127.0.0.1" else None)
         watch(page)
         page.goto(seeded, wait_until="networkidle")
+        page.request.post(seeded.split("?")[0] + "api/add", data={
+            "name": "DEMO_CONFIG_URL",
+            "value": "https://demo.example.org",
+            "sensitive": False,
+        })
+        page.reload(wait_until="networkidle")
+        config_row = page.locator(".secret", has_text="DEMO_CONFIG_URL")
+        expect(config_row.locator(".secret-value")).to_have_text("https://demo.example.org")
+        secret_row = page.locator(".secret", has_text="AWS_ACCESS_KEY_ID").first
+        expect(secret_row.locator(".secret-value")).to_contain_text("••••")
+        secret_row.locator(".reveal-value").click()
+        expect(secret_row.locator(".secret-value")).to_have_text("demo-key-not-real")
+        secret_row.locator(".reveal-value").click()
+        expect(secret_row.locator(".secret-value")).to_contain_text("••••")
+
         text = "my email address is first@example.org\nsecond@example.org\nOPENAI_API_KEY=dummy-new-key\nCUSTOM_SETTING=opaque-value\nBASE_URL=https://example.org?signature=dummy\nunrecognized sentence"
         import_text(page, text)
         expect(page.locator(".review-entry")).to_have_count(5)
