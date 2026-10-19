@@ -7,6 +7,10 @@ the `0.x` series.
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-10-19
+
+OpenCode wiring fallback, harness removal, and local value access.
+
 ### Added
 
 - Local value visibility: plain config is shown in the UI and with
