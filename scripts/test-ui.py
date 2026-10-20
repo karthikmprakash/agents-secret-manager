@@ -26,10 +26,18 @@ def fixture(seeded):
         text=True, start_new_session=True,
     )
     processes.append(process)
+    url = None
+    workdir = None
     for line in process.stdout:
+        if "UI_PREVIEW_CWD=" in line:
+            workdir = line.strip().split("UI_PREVIEW_CWD=", 1)[1]
         if "UI_PREVIEW_URL=" in line:
-            return line.strip().split("UI_PREVIEW_URL=", 1)[1]
-    raise RuntimeError("Isolated UI fixture did not start")
+            url = line.strip().split("UI_PREVIEW_URL=", 1)[1]
+        if url and workdir:
+            break
+    if not url or not workdir:
+        raise RuntimeError("Isolated UI fixture did not start")
+    return url, workdir
 
 
 def import_text(page, text):
@@ -49,7 +57,8 @@ def save_import(page):
 
 
 def run():
-    seeded, fresh = fixture(True), fixture(False)
+    seeded, seeded_dir = fixture(True)
+    fresh, _ = fixture(False)
     with tempfile.TemporaryDirectory(prefix="sm-ui-regressions-") as temp_output, sync_playwright() as pw:
         output = os.environ.get("SM_UI_SCREENSHOTS", temp_output)
         Path(output).mkdir(parents=True, exist_ok=True)
@@ -121,14 +130,42 @@ def run():
         row.locator(".review-name").fill("SECOND_AWS_KEY")
         save_import(page)
 
-        # Group edits act only on labels and have a guarded Undo.
-        page.locator('.secret-group[aria-label="personal"]').get_by_role("button", name="Manage group").click()
+        # Group edits act only on labels and have a guarded Undo. The group
+        # header carries one disclosure, not a labeled button per section.
+        group = page.locator('.secret-group[aria-label="personal"]')
+        assert group.locator(".group-head > button").count() == 0
+        group.locator(".group-actions summary").click()
+        group.get_by_role("button", name="Manage group").click()
         page.locator("#fGroup").fill("contacts")
         page.locator("#fGroup").press("Escape")
         page.locator("#saveBtn").click()
         expect(page.locator('.secret-group[aria-label="contacts"]')).to_be_visible()
         page.locator(".toast").filter(has=page.get_by_role("button", name="Undo")).get_by_role("button", name="Undo").click()
         expect(page.locator('.secret-group[aria-label="personal"]')).to_be_visible()
+
+        # A group that spans scopes still gets one control in its header, and
+        # the menu names the scope it will act on.
+        Path(seeded_dir, ".agentsecrets.toml").write_text(
+            '[secrets.PROJECT_MEMBER]\n'
+            'ref = "vault://global/PROJECT_MEMBER"\n'
+            'transport = "env"\n'
+            'service = "personal"\n'
+        )
+        page.request.post(seeded.split("?")[0] + "api/add", data={
+            "name": "PROJECT_MEMBER",
+            "value": "dummy-project-value",
+            "scope": "project",
+            "service": "personal",
+        })
+        page.reload(wait_until="networkidle")
+        multi = page.locator('.secret-group[aria-label="personal"]')
+        expect(multi.locator(".secret-name", has_text="PROJECT_MEMBER")).to_be_visible()
+        assert multi.locator(".group-head > button").count() == 0
+        assert multi.locator(".group-actions > details").count() == 1
+        multi.locator(".group-actions summary").click()
+        expect(multi.get_by_role("button", name="Manage global group")).to_be_visible()
+        expect(multi.get_by_role("button", name="Manage project group")).to_be_visible()
+        multi.locator(".group-actions summary").click()
 
         # Export and verify locally. Only encrypted bytes leave the HTTP response.
         page.locator('[data-view="recovery"]').click()

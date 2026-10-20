@@ -7,6 +7,13 @@ the `0.x` series.
 
 ## [Unreleased]
 
+### Changed
+
+- Group headers no longer repeat a labeled **Manage group** button on every
+  section. Each header now carries one `+` and one `⋯` disclosure, matching the
+  row action group. A group that spans global and project entries lists one
+  menu entry per scope instead of two buttons in the header.
+
 ## [0.5.5] - 2026-10-20
 
 Reveal control moved into a proper row action group.

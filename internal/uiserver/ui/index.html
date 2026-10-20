@@ -223,29 +223,34 @@
   }
   .chip.transport { font-family: var(--mono); }
   .chip.warn { color: var(--warn); border-color: var(--warn); background: var(--warn-soft); }
-  .row-menu { position: relative; justify-self: end; }
-  .row-menu > summary {
+  /* Shared disclosure menu. Row actions and group actions use the same
+     control, so a section header carries no more chrome than a row. */
+  .menu-pop { position: relative; }
+  .menu-pop > summary {
     display: grid; place-items: center; width: 26px; height: 26px;
     border: 1px solid transparent; border-radius: 7px;
     color: var(--text-3); cursor: pointer; list-style: none;
   }
-  .row-menu > summary::-webkit-details-marker { display: none; }
-  .row-menu > summary:hover, .row-menu[open] > summary {
+  .menu-pop > summary::-webkit-details-marker { display: none; }
+  .menu-pop > summary:hover, .menu-pop[open] > summary {
     color: var(--text); border-color: var(--line); background: var(--panel);
   }
-  .row-menu > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .row-menu .menu {
+  .menu-pop > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .menu-pop .menu {
     position: absolute; right: 0; top: calc(100% + 6px); z-index: 5;
     display: flex; flex-direction: column; min-width: 176px; padding: 4px;
     background: var(--panel); border: 1px solid var(--line);
     border-radius: 10px; box-shadow: var(--shadow-menu);
   }
-  .row-menu .menu button {
+  .menu-pop .menu button {
     padding: 7px 10px; border: 0; border-radius: 6px; text-align: left;
     background: transparent; color: var(--text); font-size: 12.5px; cursor: pointer;
   }
-  .row-menu .menu button:hover { background: var(--panel-2); }
-  .row-menu .menu button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .menu-pop .menu button:hover { background: var(--panel-2); }
+  .menu-pop .menu button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  /* A group menu usually holds one item, so it hugs its content. */
+  .group-actions .menu { min-width: max-content; }
+  .row-menu { justify-self: end; }
 
   /* empty states */
   .empty {
@@ -430,9 +435,12 @@
   .group-head { display: flex; align-items: center; gap: 8px; padding: 0 2px 9px; }
   .group-head h2 { margin: 0; font: 600 10.5px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--text-2); }
   .group-count { font: 10px var(--mono); color: var(--text-3); border: 1px solid var(--line-soft); border-radius: 999px; padding: 0 6px; line-height: 16px; }
+  /* Group actions sit in one right-aligned cluster, so a section header
+     carries the same weight of chrome as a single row. */
+  .group-actions { margin-left: auto; display: flex; align-items: center; gap: 4px; }
   .group-add {
-    margin-left: auto; display: grid; place-items: center; width: 22px; height: 22px;
-    border: 1px solid transparent; border-radius: 6px; background: transparent;
+    display: grid; place-items: center; width: 26px; height: 26px;
+    border: 1px solid transparent; border-radius: 7px; background: transparent;
     color: var(--text-3); cursor: pointer;
   }
   .group-add:hover { color: var(--text); border-color: var(--line); background: var(--panel); }
@@ -563,10 +571,10 @@
     .secret { grid-template-columns: 8px minmax(0, 1fr) auto; padding: 12px 14px; }
     .chips { grid-column: 2; flex-wrap: wrap; }
     .secret-actions { grid-column: 3; grid-row: 1 / 3; }
-    .row-menu > summary { width: 36px; height: 36px; }
+    .menu-pop > summary { width: 36px; height: 36px; }
     .reveal-slot { width: 36px; height: 36px; }
     .reveal-value { width: 36px; height: 36px; }
-    .group-add { width: 30px; height: 30px; }
+    .group-add { width: 36px; height: 36px; }
     .detect-row { grid-template-columns: auto minmax(0, 1fr); }
     .detect-chips { grid-column: 2; justify-content: flex-start; }
     .agent { flex-wrap: wrap; }
@@ -1139,17 +1147,36 @@
             "aria-label": "Add a secret to " + key,
             title: "Add a secret to " + key,
           });
-          add.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
+          add.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
           add.addEventListener("click", () => openAddSheet(key));
-          head.append(add);
-          const scopes = Array.from(new Set(members.map(s => s.scope)));
+
+          // One disclosure per group, not a labeled button per scope. The
+          // menu names the scope, so a group that spans scopes still has a
+          // single control in its header.
+          const groupMenu = el("details", { class: "menu-pop" });
+          const summary = el("summary", {
+            title: "Manage group", "aria-label": "Actions for the " + key + " group",
+          });
+          summary.innerHTML =
+            '<svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>';
+          const groupMenuList = el("div", { class: "menu" });
+          const scopes = Array.from(new Set(members.map((s) => s.scope)));
           for (const scope of scopes) {
-            head.append(el("button", {class: "btn small ghost", type: "button", text: scopes.length > 1 ? "Manage " + scope : "Manage group", onclick: () => {
-              openSheet("service", {name: key, service: key, scope});
-              state.sheet.members = (state.data?.secrets || []).filter(s => s.service === key && s.scope === scope).map(s => s.name);
-              $("sheetSub").textContent = "Rename this group for " + state.sheet.members.length + " " + scope + " entries, or clear the field to ungroup them. Values and references stay unchanged.";
-            }}));
+            groupMenuList.append(el("button", {
+              type: "button",
+              text: scopes.length > 1 ? "Manage " + scope + " group" : "Manage group",
+              onclick: () => {
+                groupMenu.open = false;
+                openSheet("service", { name: key, service: key, scope });
+                state.sheet.members = (state.data?.secrets || [])
+                  .filter((s) => s.service === key && s.scope === scope)
+                  .map((s) => s.name);
+                $("sheetSub").textContent = "Rename this group for " + state.sheet.members.length + " " + scope + " entries, or clear the field to ungroup them. Values and references stay unchanged.";
+              },
+            }));
           }
+          groupMenu.append(summary, groupMenuList);
+          head.append(el("div", { class: "group-actions" }, [add, groupMenu]));
         }
         section.append(head);
       }
@@ -1162,7 +1189,7 @@
 
   function secretRow(secret) {
     const present = secret.status === "present";
-    const menu = el("details", { class: "row-menu" });
+    const menu = el("details", { class: "menu-pop row-menu" });
     const summary = el("summary", { title: secret.ref, "aria-label": "Actions for " + secret.name });
     summary.innerHTML =
       '<svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>';
@@ -1399,13 +1426,13 @@
   $("manualBtn").addEventListener("click", () => openSheet("config"));
 
   document.addEventListener("click", (event) => {
-    document.querySelectorAll("details.row-menu[open]").forEach((menu) => {
+    document.querySelectorAll("details.menu-pop[open]").forEach((menu) => {
       if (!menu.contains(event.target)) menu.open = false;
     });
   });
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
-      document.querySelectorAll("details.row-menu[open]").forEach((menu) => { menu.open = false; });
+      document.querySelectorAll("details.menu-pop[open]").forEach((menu) => { menu.open = false; });
     }
   });
 

@@ -39,6 +39,10 @@ func TestInteractivePreview(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s.Close()
+	// The working directory is printed so browser regressions can place a
+	// project manifest and exercise project-scoped groups.
+	cwd, _ := os.Getwd()
+	fmt.Println("UI_PREVIEW_CWD=" + cwd)
 	fmt.Println("UI_PREVIEW_URL=" + s.URL)
 	<-time.After(15 * time.Minute)
 }

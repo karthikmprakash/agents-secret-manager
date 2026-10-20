@@ -267,6 +267,9 @@ action:
   row actions reveals the full value for 20 seconds. The eye is a row action,
   not part of the value text, so it never shifts the value and every eye in
   the list lines up.
+- Group headers carry one `+` (add a secret to the group) and one `⋯` menu.
+  The menu holds **Manage group**, and names the scope when a group spans
+  both global and project entries.
 - `sm get NAME` prints one value to the terminal.
 - Every reveal appends a `reveal` entry to the audit log. Treat terminal
   scrollback, clipboard history and screenshots as copies you own.
