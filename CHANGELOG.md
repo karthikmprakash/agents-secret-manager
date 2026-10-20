@@ -12,6 +12,8 @@ the `0.x` series.
 - Clarified that redaction covers MCP output before it reaches the harness, not
   the harness's own request/session logs, model context, or child-written
   files.
+- The sensitive-value eye button now sits directly beside the masked hint and
+  is vertically centered with it, instead of at the far edge of the row.
 
 ## [0.5.3] - 2026-10-19
 

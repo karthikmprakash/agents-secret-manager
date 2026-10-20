@@ -195,11 +195,14 @@
   .secret-value.hint { letter-spacing: .08em; }
   .secret-value.config-value { color: var(--text-2); }
   .secret-value.revealed { color: var(--accent); }
-  .secret-value-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
-  .secret-value-row .secret-value { flex: 1; min-width: 0; }
+  .secret-value-row {
+    display: inline-flex; align-items: center; gap: 6px;
+    max-width: 100%; margin-top: 3px; vertical-align: top;
+  }
+  .secret-value-row .secret-value { flex: 0 1 auto; min-width: 0; margin-top: 0; }
   .reveal-value {
     display: grid; place-items: center; flex: none;
-    width: 26px; height: 26px; padding: 0;
+    width: 22px; height: 22px; padding: 0;
     border: 1px solid transparent; border-radius: 6px;
     background: transparent; color: var(--text-3); cursor: pointer;
   }

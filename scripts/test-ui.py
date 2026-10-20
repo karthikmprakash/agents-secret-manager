@@ -73,6 +73,11 @@ def run():
         expect(config_row.locator(".secret-value")).to_have_text("https://demo.example.org")
         secret_row = page.locator(".secret", has_text="AWS_ACCESS_KEY_ID").first
         expect(secret_row.locator(".secret-value")).to_contain_text("••••")
+        value_box = secret_row.locator(".secret-value").bounding_box()
+        eye_box = secret_row.locator(".reveal-value").bounding_box()
+        assert value_box and eye_box
+        assert 0 <= eye_box["x"] - (value_box["x"] + value_box["width"]) <= 12, (value_box, eye_box)
+        assert abs((eye_box["y"] + eye_box["height"] / 2) - (value_box["y"] + value_box["height"] / 2)) <= 2, (value_box, eye_box)
         secret_row.locator(".reveal-value").click()
         expect(secret_row.locator(".secret-value")).to_have_text("demo-key-not-real")
         secret_row.locator(".reveal-value").click()
