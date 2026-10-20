@@ -7,6 +7,10 @@ the `0.x` series.
 
 ## [Unreleased]
 
+## [0.5.5] - 2026-10-20
+
+Reveal control moved into a proper row action group.
+
 ### Changed
 
 - The reveal control is now a row action in a right-aligned action group next
