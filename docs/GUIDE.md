@@ -263,8 +263,10 @@ action:
 
 - Plain config (`sensitive = false`) is shown in the UI and with
   `sm env --show-config`.
-- Sensitive entries show a last-four hint in the UI. The eye button reveals the
-  full value for 20 seconds.
+- Sensitive entries show a last-four hint in the UI. The eye button in the
+  row actions reveals the full value for 20 seconds. The eye is a row action,
+  not part of the value text, so it never shifts the value and every eye in
+  the list lines up.
 - `sm get NAME` prints one value to the terminal.
 - Every reveal appends a `reveal` entry to the audit log. Treat terminal
   scrollback, clipboard history and screenshots as copies you own.

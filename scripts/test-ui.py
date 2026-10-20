@@ -71,13 +71,26 @@ def run():
         page.reload(wait_until="networkidle")
         config_row = page.locator(".secret", has_text="DEMO_CONFIG_URL")
         expect(config_row.locator(".secret-value")).to_have_text("https://demo.example.org")
+        # Config values are plain and have no reveal control.
+        assert config_row.locator(".reveal-value").count() == 0
         secret_row = page.locator(".secret", has_text="AWS_ACCESS_KEY_ID").first
         expect(secret_row.locator(".secret-value")).to_contain_text("••••")
+        # Every reveal control sits in the same right-aligned action group, so
+        # the eyes line up in one column and never touch the value text.
+        eyes = page.locator(".secret .reveal-value")
+        assert eyes.count() >= 2
+        eye_boxes = [eyes.nth(i).bounding_box() for i in range(eyes.count())]
+        assert all(abs(b["x"] - eye_boxes[0]["x"]) <= 1 for b in eye_boxes), eye_boxes
+        assert all(abs(b["width"] - eye_boxes[0]["width"]) <= 1 for b in eye_boxes), eye_boxes
         value_box = secret_row.locator(".secret-value").bounding_box()
         eye_box = secret_row.locator(".reveal-value").bounding_box()
         assert value_box and eye_box
-        assert 0 <= eye_box["x"] - (value_box["x"] + value_box["width"]) <= 12, (value_box, eye_box)
-        assert abs((eye_box["y"] + eye_box["height"] / 2) - (value_box["y"] + value_box["height"] / 2)) <= 2, (value_box, eye_box)
+        assert eye_box["x"] >= value_box["x"] + value_box["width"], (value_box, eye_box)
+        # The overflow menu keeps the same place on rows with and without a
+        # reveal control, so the right edge of the list stays stable.
+        menus = page.locator(".secret .row-menu > summary")
+        menu_boxes = [menus.nth(i).bounding_box() for i in range(menus.count())]
+        assert all(abs(b["x"] - menu_boxes[0]["x"]) <= 1 for b in menu_boxes), menu_boxes
         secret_row.locator(".reveal-value").click()
         expect(secret_row.locator(".secret-value")).to_have_text("demo-key-not-real")
         secret_row.locator(".reveal-value").click()
@@ -166,6 +179,26 @@ def run():
                 })""")
                 assert geometry["scroll"] <= geometry["width"], geometry
                 assert geometry["formScroll"] <= geometry["formWidth"], geometry
+                # The secret list must not overflow, and the row actions must
+                # stay in one column at every width.
+                list_geometry = test_page.evaluate("""() => {
+                  const rows = [...document.querySelectorAll('.secret')];
+                  const box = (el) => { const r = el.getBoundingClientRect(); return Math.round(r.x); };
+                  const eyes = rows.map((r) => r.querySelector('.reveal-value')).filter(Boolean);
+                  const menus = rows.map((r) => r.querySelector('.row-menu > summary'));
+                  return {
+                    scroll: document.documentElement.scrollWidth,
+                    width: innerWidth,
+                    listScroll: document.getElementById('secretList').scrollWidth,
+                    listWidth: document.getElementById('secretList').clientWidth,
+                    eyeX: [...new Set(eyes.map(box))],
+                    menuX: [...new Set(menus.map(box))],
+                  };
+                }""")
+                assert list_geometry["scroll"] <= list_geometry["width"], list_geometry
+                assert list_geometry["listScroll"] <= list_geometry["listWidth"], list_geometry
+                assert len(list_geometry["eyeX"]) <= 1, list_geometry
+                assert len(list_geometry["menuX"]) <= 1, list_geometry
                 # Screenshots use only the fixture's dummy values.
                 test_page.screenshot(path=str(Path(output) / f"import-{scheme}-{width}.png"))
                 test_page.close()

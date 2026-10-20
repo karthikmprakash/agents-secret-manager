@@ -7,6 +7,14 @@ the `0.x` series.
 
 ## [Unreleased]
 
+### Changed
+
+- The reveal control is now a row action in a right-aligned action group next
+  to the overflow menu, instead of sitting inside the value text. It no longer
+  shifts or crowds the masked hint, every eye in the list shares one column,
+  and the overflow menu keeps the same position on rows with and without a
+  reveal control.
+
 ## [0.5.4] - 2026-10-20
 
 Reveal-control alignment and clearer redaction boundaries.

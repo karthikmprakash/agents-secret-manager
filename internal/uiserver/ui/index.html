@@ -195,19 +195,22 @@
   .secret-value.hint { letter-spacing: .08em; }
   .secret-value.config-value { color: var(--text-2); }
   .secret-value.revealed { color: var(--accent); }
-  .secret-value-row {
-    display: inline-flex; align-items: center; gap: 6px;
-    max-width: 100%; margin-top: 3px; vertical-align: top;
-  }
-  .secret-value-row .secret-value { flex: 0 1 auto; min-width: 0; margin-top: 0; }
+  /* Row actions live in one right-aligned group, so a reveal control never
+     shifts the value text and every eye lines up down the list. */
+  .secret-actions { display: flex; align-items: center; gap: 4px; justify-self: end; }
+  /* The slot is always present, so the overflow menu keeps the same position
+     on rows with a reveal control and rows without one. */
+  .reveal-slot { flex: none; width: 26px; height: 26px; display: grid; place-items: center; }
   .reveal-value {
-    display: grid; place-items: center; flex: none;
-    width: 22px; height: 22px; padding: 0;
-    border: 1px solid transparent; border-radius: 6px;
+    display: grid; place-items: center;
+    width: 26px; height: 26px; padding: 0;
+    border: 1px solid transparent; border-radius: 7px;
     background: transparent; color: var(--text-3); cursor: pointer;
+    transition: color .12s ease, background .12s ease;
   }
-  .reveal-value:hover { background: var(--panel-2); color: var(--text); }
-  .reveal-value:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .reveal-value:hover { background: var(--panel); color: var(--text); border-color: var(--line); }
+  .reveal-value:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .reveal-value[aria-pressed="true"] { color: var(--accent); }
   .secret-name {
     font: 500 12.5px var(--mono); letter-spacing: -0.01em;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -559,8 +562,10 @@
     .nav-item svg { width: 14px; height: 14px; }
     .secret { grid-template-columns: 8px minmax(0, 1fr) auto; padding: 12px 14px; }
     .chips { grid-column: 2; flex-wrap: wrap; }
-    .row-menu { grid-column: 3; grid-row: 1 / 3; }
+    .secret-actions { grid-column: 3; grid-row: 1 / 3; }
     .row-menu > summary { width: 36px; height: 36px; }
+    .reveal-slot { width: 36px; height: 36px; }
+    .reveal-value { width: 36px; height: 36px; }
     .group-add { width: 30px; height: 30px; }
     .detect-row { grid-template-columns: auto minmax(0, 1fr); }
     .detect-chips { grid-column: 2; justify-content: flex-start; }
@@ -1185,63 +1190,71 @@
       text: valueText,
       translate: "no",
     });
-    const valueRow = el("div", { class: "secret-value-row" }, [valueLine]);
-    if (secret.revealable) {
-      const openSVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.6"/></svg>';
-      const closedSVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 3 18 18"/><path d="M10.6 6.2A10.8 10.8 0 0 1 12 6c6 0 9.5 6 9.5 6a17 17 0 0 1-2.2 2.9M6.2 6.2C3.9 7.8 2.5 12 2.5 12s3.5 6 9.5 6c1.3 0 2.5-.3 3.5-.7"/></svg>';
-      const eye = el("button", {
-        class: "reveal-value", type: "button",
-        "aria-label": "Reveal value", "aria-pressed": "false", title: "Reveal value",
-      });
-      eye.innerHTML = openSVG;
-      let revealed = false;
-      let hideTimer = null;
-      const hide = () => {
-        clearTimeout(hideTimer);
-        valueLine.textContent = secret.preview || "••••";
-        valueLine.classList.remove("revealed");
-        eye.innerHTML = openSVG;
-        eye.setAttribute("aria-label", "Reveal value");
-        eye.setAttribute("aria-pressed", "false");
-        eye.title = "Reveal value";
-        revealed = false;
-      };
-      eye.addEventListener("click", async () => {
-        if (revealed) {
-          hide();
-          return;
-        }
-        try {
-          const res = await api("/api/reveal", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name: secret.name, scope: secret.scope }),
-          });
-          valueLine.textContent = res.value;
-          valueLine.classList.add("revealed");
-          eye.innerHTML = closedSVG;
-          eye.setAttribute("aria-label", "Hide value");
-          eye.setAttribute("aria-pressed", "true");
-          eye.title = "Hide value";
-          revealed = true;
-          clearTimeout(hideTimer);
-          hideTimer = setTimeout(hide, 20000);
-        } catch (err) {
-          toast(err.message);
-        }
-      });
-      valueRow.append(eye);
-    }
+
+    // Reveal is a row action in a right-aligned group, so it never shifts the
+    // value text and every eye in the list shares one column. The slot is
+    // always rendered so the overflow menu stays put on every row.
+    const revealSlot = el("div", { class: "reveal-slot" });
+    if (secret.revealable) revealSlot.append(buildRevealButton(secret, valueLine));
 
     return el("li", { class: "secret" }, [
       el("span", { class: "dot " + (present ? "ok" : "warn"), title: present ? "present" : "missing" }),
       el("div", { class: "secret-main" }, [
         el("div", { class: "secret-name", text: secret.name, translate: "no" }),
-        valueRow,
+        valueLine,
       ]),
       chips,
-      menu,
+      el("div", { class: "secret-actions" }, [revealSlot, menu]),
     ]);
+  }
+
+  function buildRevealButton(secret, valueLine) {
+    const openSVG = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.6"/></svg>';
+    const closedSVG = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 3 18 18"/><path d="M10.6 6.2A10.8 10.8 0 0 1 12 6c6 0 9.5 6 9.5 6a17 17 0 0 1-2.2 2.9M6.2 6.2C3.9 7.8 2.5 12 2.5 12s3.5 6 9.5 6c1.3 0 2.5-.3 3.5-.7"/></svg>';
+    const eye = el("button", {
+      class: "reveal-value", type: "button",
+      "aria-label": "Reveal value for " + secret.name,
+      "aria-pressed": "false", title: "Reveal value",
+    });
+    eye.innerHTML = openSVG;
+    let revealed = false;
+    let hideTimer = null;
+    const hide = () => {
+      clearTimeout(hideTimer);
+      valueLine.textContent = secret.preview || "••••";
+      valueLine.classList.remove("revealed");
+      eye.innerHTML = openSVG;
+      eye.setAttribute("aria-label", "Reveal value for " + secret.name);
+      eye.setAttribute("aria-pressed", "false");
+      eye.title = "Reveal value";
+      revealed = false;
+    };
+    eye.addEventListener("click", async () => {
+      if (revealed) {
+        hide();
+        return;
+      }
+      try {
+        const res = await api("/api/reveal", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: secret.name, scope: secret.scope }),
+        });
+        valueLine.textContent = res.value;
+        valueLine.classList.add("revealed");
+        eye.innerHTML = closedSVG;
+        eye.setAttribute("aria-label", "Hide value for " + secret.name);
+        eye.setAttribute("aria-pressed", "true");
+        eye.title = "Hide value";
+        revealed = true;
+        clearTimeout(hideTimer);
+        hideTimer = setTimeout(hide, 20000);
+        toast("Value revealed for 20 seconds.");
+      } catch (err) {
+        toast(err.message);
+      }
+    });
+    return eye;
   }
 
   async function copyRef(name) {
