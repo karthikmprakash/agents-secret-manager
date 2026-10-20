@@ -7,6 +7,10 @@ the `0.x` series.
 
 ## [Unreleased]
 
+## [0.5.6] - 2026-10-20
+
+Group headers carry one disclosure instead of a repeated button.
+
 ### Changed
 
 - Group headers no longer repeat a labeled **Manage group** button on every
