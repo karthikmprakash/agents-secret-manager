@@ -7,6 +7,10 @@ the `0.x` series.
 
 ## [Unreleased]
 
+## [0.5.4] - 2026-10-20
+
+Reveal-control alignment and clearer redaction boundaries.
+
 ### Changed
 
 - Clarified that redaction covers MCP output before it reaches the harness, not
