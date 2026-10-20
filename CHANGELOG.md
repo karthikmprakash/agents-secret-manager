@@ -7,6 +7,12 @@ the `0.x` series.
 
 ## [Unreleased]
 
+### Changed
+
+- Clarified that redaction covers MCP output before it reaches the harness, not
+  the harness's own request/session logs, model context, or child-written
+  files.
+
 ## [0.5.3] - 2026-10-19
 
 Cached update checks and eye-button value reveal.

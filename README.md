@@ -274,9 +274,12 @@ output. Full command and workflow details are in the [guide](docs/GUIDE.md).
 - **Children receive plaintext credentials.** Arbitrary code can encode,
   exfiltrate or write them to disk. This is not a sandbox, prompt-injection
   defense, per-agent ACL or egress firewall.
-- **Redaction is exact-value masking of captured output.** Encoded values, raw
-  TTY output and alternate channels are outside that guarantee. `--only` and
-  `service` are cooperative selection, not authorization.
+- **Redaction is exact-value masking of the output sm captures and returns.**
+  A harness that logs the MCP result receives the redacted bytes, but sm does
+  not control the harness's request/session logs, model context, files or logs
+  written by the child, or encoded/transformed values. Raw TTY output and
+  alternate channels are outside that guarantee. `--only` and `service` are
+  cooperative selection, not authorization.
 - **Audit is tamper-evident, not tamper-proof.** Hash links detect interior
   damage; they do not prevent same-user rewriting or truncation.
 - **`sm doctor` is a bounded scanner** for registered values, not a proof that a

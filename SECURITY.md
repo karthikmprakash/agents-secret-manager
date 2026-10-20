@@ -63,8 +63,12 @@ The full boundaries are in the [README](README.md#security-boundaries). In short
 
 - Child processes receive **plaintext** credentials; arbitrary code can encode
   or exfiltrate them. This is not a sandbox.
-- Redaction is exact-value masking in captured output only. Encoded or
-  transformed values, raw TTY output, and alternate channels are out of scope.
+- Redaction is exact-value masking in output captured by sm only. A harness
+  that logs the MCP tool result receives the already-redacted bytes, but sm
+  cannot redact the harness's request/session logs, model context, files or
+  logs written by the child, or encoded/transformed values. Raw TTY output and
+  alternate channels are out of scope. `sm doctor` can find some registered
+  values after the fact; it does not rewrite logs.
 - `--only` and `service` are cooperative selection, not authorization; the same
   OS user can read the vault through `sm` regardless.
 - `scope`, `hosts` and `default_ttl` are advisory metadata today.

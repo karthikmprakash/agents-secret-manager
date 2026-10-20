@@ -350,11 +350,14 @@ cannot certify a transcript or repository as safe to share.
   send them over a network or write them to disk. Same-user processes can access
   user files and the Keychain according to OS permissions. This is not a
   sandbox, prompt-injection defense, per-agent ACL or egress firewall.
-- **Redaction** masks exact known sensitive values in captured output.
-  `--redact auto` masks when output is not a TTY; `always` and `never` override.
-  Raw TTY output, encoded values, unregistered plaintext `.env` values and
-  alternate channels are outside the guarantee. `--only` and `service` are
-  cooperative selection, not authorization.
+- **Redaction** masks exact known sensitive values in the output sm captures
+  and returns. `--redact auto` masks when output is not a TTY; `always` and
+  `never` override. A harness logging the MCP result receives the redacted
+  bytes, but sm cannot redact the harness's request/session logs, model
+  context, files or logs written by the child, or encoded values. Raw TTY
+  output, unregistered plaintext `.env` values and alternate channels are
+  outside the guarantee. `--only` and `service` are cooperative selection,
+  not authorization.
 - **Audit** is tamper-evident, not tamper-proof.
 - **Advisory metadata:** `scope`, `hosts` and `default_ttl` are not enforced.
   Proxy and dynamic delivery are not implemented.
