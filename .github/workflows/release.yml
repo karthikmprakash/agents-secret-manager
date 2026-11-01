@@ -40,7 +40,7 @@ jobs:
           (cd dist/macos-zip && zip -qry ../sm-macos-app.zip sm.app sm)
           (cd dist && shasum -a 256 sm-macos-app.zip > sm-macos-app.zip.sha256)
           rm -rf dist/macos-zip
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dist-macos
           path: |
@@ -65,7 +65,7 @@ jobs:
         env:
           VERSION: ${{ github.ref_name }}
         run: ./scripts/build-linux-app.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dist-linux
           path: |
